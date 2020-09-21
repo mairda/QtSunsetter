@@ -397,6 +397,18 @@ def setLocalTZ():
     # print("TZ: {}".format(HomeTZ))
 
 
+def SsMathDebug():
+    global doDBug
+
+    return doDBug
+
+
+def SsMathTest():
+    global doTest
+
+    return doTest
+
+
 # Global state
 doDBug = False
 doTest = False
