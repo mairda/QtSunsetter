@@ -31,6 +31,7 @@ Latitude as a signed decimal floating point number (positive values are North, n
 
 
 # A place to watch
+
 latitude=39.976634
 
 longitude=-111.766673
