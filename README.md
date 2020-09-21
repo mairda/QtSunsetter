@@ -32,10 +32,10 @@ Latitude as a signed decimal floating point number (positive values are North, n
 
 \# A place to watch
 
-latitude=39.976634
+latitude=58.8
 
-longitude=-111.766673
+longitude=-4.5
 
-timezone=-6.0
+timezone=1.0
 
 CorrectForSystemTimezone
