@@ -30,7 +30,7 @@ Persistent configuration can be stored in the user's home directory, it current 
 Latitude as a signed decimal floating point number (positive values are North, negative values are South). Longitude as a signed decimal floating point number (positive values are East, negative values are West). The clock timezone offset in hours for the configured latitude/longitude as a signed decimal number. To correct the displayed time from local system clock to the configured timezone clock offset. If not present the local system clock is used as the time at the configured latitude/longitude An example configuration might look like:
 
 
-# A place to watch
+\# A place to watch
 
 latitude=39.976634
 
