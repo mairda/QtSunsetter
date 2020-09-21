@@ -1,5 +1,5 @@
 # QtSunsetter
-Python/Qt application to give the sunset/sunrise time for a location and count the time to the next
+Python/Qt application to give the sunset/sunrise time for a location and count the time to the next. Project files provided for Qt Creator (4.13.0)
 
 Using python 3(.8) and Qt 5(.15) create a widget based application to allow input of a latitude, longitude and timezone clock offset in hours then use those to show the current time, the sunrise and sunset times on this day and the time until the next solar horizon crossing. Allows the user to specify whether to correct the local system clock for the chosen timezone and show the current time and remaining time to next solar horizon in that case. For example, allows the input of a different location from the one where it is run and see the sun rise/set details there rather than here.
 
