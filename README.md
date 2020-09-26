@@ -5,7 +5,7 @@ Using python 3(.8) and Qt 5(.15) create a widget based application to allow inpu
 
 Use by placing the .py and .ui files in a directory and launch by running thy python 3.8 program with the QtSunSetter.py file as an argument, e.g.:
 
-<path-to>/python <path-to>/QtSunsetter.py
+\<path-to\>/python \<path-to\>/QtSunsetter.py
 
 Required libraries include:
 
