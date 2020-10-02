@@ -27,9 +27,9 @@ import re
 
 from PySide2.QtWidgets import QApplication, QWidget, QPushButton, QDialog
 from PySide2.QtWidgets import QLineEdit, QLabel, QComboBox, QCheckBox
-from PySide2.QtWidgets import QSpinBox, QMessageBox
+from PySide2.QtWidgets import QSpinBox, QMessageBox, QFileDialog
 from PySide2.QtCore import QFile, QPoint, QObject, QTimer, SIGNAL, SLOT
-from PySide2.QtCore import QDir, QIODevice, QTextStream
+from PySide2.QtCore import QDir, QIODevice, QTextStream, QFileInfo
 from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsDialog
@@ -62,6 +62,16 @@ class QtSunsetter(QWidget):
         # Show any saved location
         self.showLocation()
 
+        # Show any saved sunset/sunrise programs
+        if self.initRiseRun is not None:
+            riseRun = self.findChild(QLineEdit, "lnRiseRun")
+            if riseRun is not None:
+                riseRun.setText(self.initRiseRun)
+        if self.initSetRun is not None:
+            setRun = self.findChild(QLineEdit, "lnSetRun")
+            if setRun is not None:
+                setRun.setText(self.initSetRun)
+
         # Connect the set location button to our slot
         btnSetLocation = self.findChild(QPushButton, "btnSetLocation")
         if btnSetLocation is not None:
@@ -73,6 +83,19 @@ class QtSunsetter(QWidget):
         if btnSaveConfig is not None:
             QObject.connect(btnSaveConfig, SIGNAL('clicked()'),
                             self, SLOT('saveConfig()'))
+
+        # Connect the sunrise run ... button to our slot
+        btnChooseRun = self.findChild(QPushButton, "btnChooseRiseRun")
+        if btnChooseRun is not None:
+            QObject.connect(btnChooseRun, SIGNAL('clicked()'),
+                            self, SLOT('chooseRiseRun()'))
+
+        # Connect the sunset run ... button to our slot
+        btnChooseRun = None
+        btnChooseRun = self.findChild(QPushButton, "btnChooseSetRun")
+        if btnChooseRun is not None:
+            QObject.connect(btnChooseRun, SIGNAL('clicked()'),
+                            self, SLOT('chooseSetRun()'))
 
         # Start a timer to update the time, it doesn't need to be per-second
         self.timer.timeout.connect(self.tick)
@@ -451,6 +474,52 @@ class QtSunsetter(QWidget):
         else:
             debugMessage("location controls NOT found")
 
+    def getChooseDirFrom(self, curFile=None):
+        if (curFile is None) or (curFile == ""):
+            # No file given, use the config file directory
+            useDir = self.getConfigFileDir()
+        else:
+            # Find the last slash
+            lSlash = curFile.rfind("/")
+            useDir = curFile[0:lSlash]
+
+        return useDir
+
+    def chooseRunnableFile(self, sunHorizon, curFile):
+        newFile = ""
+        if (sunHorizon == "sunrise") or (sunHorizon == "sunset"):
+            homeDir = self.getChooseDirFrom(curFile)
+            ofPrompt = "Choose a program to be run at {}".format(sunHorizon)
+            (fileName, selFilter) = QFileDialog.getOpenFileName(self,
+                                                                ofPrompt,
+                                                                homeDir,
+                                                                "Files (*)")
+            if (fileName is not None) and (fileName != ""):
+                fInfo = QFileInfo(fileName)
+                if (fInfo.exists()) and (fInfo.isExecutable()):
+                    newFile = fileName
+                else:
+                    msgTxt = "The chosen file does not exist or is not "
+                    msgTxt += "executable and will not be used. You must "
+                    msgTxt += "choose an existing, executable file."
+                    QMessageBox.information(self, "Error", msgTxt)
+
+        return newFile
+
+    def chooseRiseRun(self):
+        riseRun = self.findChild(QLineEdit, "lnRiseRun")
+        if riseRun is not None:
+            fileName = self.chooseRunnableFile("sunrise", riseRun.text())
+            if (fileName is not None) and (fileName != ""):
+                riseRun.setText("{}".format(fileName))
+
+    def chooseSetRun(self):
+        setRun = self.findChild(QLineEdit, "lnSetRun")
+        if setRun is not None:
+            fileName = self.chooseRunnableFile("sunset", setRun.text())
+            if (fileName is not None) and (fileName != ""):
+                setRun.setText("{}".format(fileName))
+
     def getConfigFileDir(self):
         # Get the home directory path
         homePath = QDir.homePath()
@@ -543,9 +612,41 @@ class QtSunsetter(QWidget):
             debugMessage("CorrectForSystemTimezone ENABLED")
             return
 
-        # print("{}".format(theLine))
+        # If we have a program to run on sunrise
+        m = re.search('^sunriserun=(.+)$',
+                      theLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            fileName = m.group(1)
+            fInfo = QFileInfo(fileName)
+            if (fInfo.exists()) and (fInfo.isExecutable()):
+                self.initRiseRun = fileName
+                riseRun = self.findChild(QLineEdit, "lnRiseRun")
+                if riseRun is not None:
+                    riseRun.setText("{}".format(fileName))
+            debugMessage("sunrise program = {}".format(fileName))
+            return
+
+        # If we have a program to run on sunset
+        m = re.search('^sunsetrun=(.+)$',
+                      theLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            fileName = m.group(1)
+            fInfo = QFileInfo(fileName)
+            if (fInfo.exists()) and (fInfo.isExecutable()):
+                self.initSetRun = fileName
+                setRun = self.findChild(QLineEdit, "lnSetRun")
+                if setRun is not None:
+                    setRun.setText("{}".format(fileName))
+            debugMessage("sunset program = {}".format(fileName))
+            return
+
+        debugMessage("Unprocessed config line: {}".format(theLine))
 
     def loadConfig(self):
+        self.initRiseRun = None
+        self.initSetRun = None
         cfgFilename = self.getConfigFilename()
         cfgFile = QFile(cfgFilename)
         if cfgFile is not None:
@@ -667,6 +768,42 @@ class QtSunsetter(QWidget):
 
             self.savedCorrectForSysTZ = True
 
+            # If we have a program to run at sunrise (string)
+            riseRun = self.findChild(QLineEdit, "lnRiseRun")
+            if riseRun is not None:
+                m = re.search('^sunriserun=(\\.+)$',
+                              theLine,
+                              flags=re.IGNORECASE)
+                if m is not None:
+                    # If we haven't already saved it
+                    if not self.savedRiseRun:
+                        # Re-build using the current value
+                        outLine = "sunriserun={}".format(riseRun.text())
+                        self.savedRiseRun = True
+                    else:
+                        # Saved it already, make the line a comment
+                        outLine = "#" + outLine
+                        theGap = None
+                        theComment = None
+
+            # If we have a program to run at sunset (string)
+            setRun = self.findChild(QLineEdit, "lnSetRun")
+            if setRun is not None:
+                m = re.search('^sunsetrun=(\\.+)$',
+                              theLine,
+                              flags=re.IGNORECASE)
+                if m is not None:
+                    # If we haven't already saved it
+                    if not self.savedSetRun:
+                        # Re-build using the current value
+                        outLine = "sunsetrun={}".format(setRun.text())
+                        self.savedSetRun = True
+                    else:
+                        # Saved it already, make the line a comment
+                        outLine = "#" + outLine
+                        theGap = None
+                        theComment = None
+
         self.saveConfigLine(outStream, outLine, theGap, theComment)
 
     # Save the config but only replace supported configuration items while
@@ -677,6 +814,8 @@ class QtSunsetter(QWidget):
         self.savedLon = False
         self.savedTZ = False
         self.savedCorrectForSysTZ = False
+        self.savedRiseRun = False
+        self.savedSetRun = False
 
         # Get the config and temp filenames
         cfgFilename = self.getConfigFilename()
@@ -722,12 +861,17 @@ class QtSunsetter(QWidget):
                         (self.CorrectForSysTZ is True):
                     self.processOutputConfigLine(outStream,
                                                  "CorrectForSystemTimezone")
+                if not self.savedRiseRun:
+                    self.processOutputConfigLine(outStream, "sunriserun=abc")
+                if not self.savedSetRun:
+                    self.processOutputConfigLine(outStream, "sunsetrun=abc")
 
                 # Rename the temp file as the config file
                 tmpFile.rename(cfgFilename)
 
 
-disableDebug()
+#disableDebug()
+enableDebug()
 
 if __name__ == "__main__":
     app = QApplication([])
