@@ -977,8 +977,8 @@ class QtSunsetter(QWidget):
                 tmpFile.rename(cfgFilename)
 
 
-# disableDebug()
-enableDebug()
+disableDebug()
+# enableDebug()
 
 if __name__ == "__main__":
     app = QApplication([])
