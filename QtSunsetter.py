@@ -31,6 +31,7 @@ from PySide2.QtWidgets import QLineEdit, QLabel, QComboBox, QCheckBox
 from PySide2.QtWidgets import QSpinBox, QMessageBox, QFileDialog
 from PySide2.QtCore import QFile, QPoint, QObject, QTimer, SIGNAL, SLOT
 from PySide2.QtCore import QDir, QIODevice, QTextStream, QFileInfo
+from PySide2.QtGui import QColor, QPalette, QBrush
 from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsDialog
@@ -57,6 +58,8 @@ class QtSunsetter(QWidget):
         ui_file.open(QFile.ReadOnly)
         loader.load(ui_file, self)
         ui_file.close()
+
+        self.getTargetLineEditColor()
 
         # Cause the time to set
         self.tick()
@@ -199,6 +202,13 @@ class QtSunsetter(QWidget):
                                   minutes=TimeNow.minute,
                                   seconds=TimeNow.second)
 
+    def getTimeNowFractionofDay(self):
+        timeNow = self.getTimeNowWithCorrection()
+        y = timeNow.hour * 3600.0
+        y += timeNow.minute * 60.0
+        y += timeNow.second
+        return (y / 86400.0)
+
     def getTimeNowWithCorrection(self):
         timeNow = self.getTimeNow()
         correctHour = timeNow.hour
@@ -230,18 +240,24 @@ class QtSunsetter(QWidget):
                                   minutes=TimeNow.minute,
                                   seconds=TimeNow.second)
 
-    def getSunriseTime(self):
+    def getSunriseFractionOfDay(self):
         Today = datetime.date.today()
         aTime = datetime.time(0, 6, 0)
 
-        x = LocalSunrise(Today, aTime)
+        return LocalSunrise(Today, aTime)
+
+    def getSunsetFractionOfDay(self):
+        Today = datetime.date.today()
+        aTime = datetime.time(0, 6, 0)
+
+        return LocalSunset(Today, aTime)
+
+    def getSunriseTime(self):
+        x = self.getSunriseFractionOfDay()
         return timeFromDayFraction(x)
 
     def getSunsetTime(self):
-        Today = datetime.date.today()
-        aTime = datetime.time(0, 6, 0)
-
-        x = LocalSunset(Today, aTime)
+        x = self.getSunsetFractionOfDay()
         return timeFromDayFraction(x)
 
     def getSunriseDelta(self):
@@ -266,6 +282,59 @@ class QtSunsetter(QWidget):
     def itsNighttime(self):
         # Implicitly not daytime
         return not self.itsDaytime()
+
+    def daytimeFractionOfDay(self):
+        Today = datetime.date.today()
+        aTime = datetime.time(0, 6, 0)
+
+        r = LocalSunrise(Today, aTime)
+        s = LocalSunset(Today, aTime)
+
+        return (s - r)
+
+    def nighttimeFractionOfDay(self):
+        return (1 - self.daytimeFractionOfDay())
+
+    def daytimeDuration(self):
+        return timeFromDayFraction(self.daytimeFractionOfDay())
+
+    def nighttimeDuration(self):
+        return timeFromDayFraction(self.nighttimeFractionOfDay())
+
+    # Automatically chooses daytime or nighttime
+    def getTimeNowFractionOfLightPeriod(self):
+        srDelta = self.getSunriseFractionOfDay()
+        ssDelta = self.getSunsetFractionOfDay()
+        nowDelta = self.getTimeNowFractionofDay()
+        if self.itsDaytime():
+            # Subtract sunrise from now, all as a fraction of ratio of daytime
+            elapsedFraction = nowDelta - srDelta
+            elapsedFraction /= self.daytimeFractionOfDay()
+        else:
+            # Night crosses midnight, take care
+            if nowDelta > ssDelta:
+                # Evening, subtract sunset
+                elapsedFraction = nowDelta - ssDelta
+            else:
+                # Morning, Add whole evening to current part of morning
+                elapsedFraction = 1 - ssDelta + nowDelta
+
+            # As a fraction of nighttime
+            elapsedFraction /= self.nighttimeFractionOfDay()
+
+        # debugMessage("time now as a fraction of current light period: {}".format(elapsedFraction))
+
+        return elapsedFraction
+
+    # Automatically chooses daytime or nighttime
+    def getTimeNowDurationOfLightPeriod(self):
+        elapsedFraction = self.getTimeNowFractionOfLightPeriod()
+        if self.itsDaytime():
+            elapsedFraction *= self.daytimeFractionOfDay()
+        else:
+            elapsedFraction *= self.nighttimeFractionOfDay()
+
+        return timeFromDayFraction(elapsedFraction)
 
     def runEventProgram(self, fileName):
         if (fileName is not None) and (fileName != ""):
@@ -340,6 +409,89 @@ class QtSunsetter(QWidget):
         if labSunset is not None:
             labSunset.setText("{}".format(sSet))
 
+    def getTargetLineEditColor(self):
+        riseRun = self.findChild(QLineEdit, "lnRiseRun")
+        setRun = self.findChild(QLineEdit, "lnSetRun")
+        if (riseRun is not None) and (setRun is not None):
+            wPalette = riseRun.palette()
+            bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
+            self.riseTgtColor = bgBrush.color()
+            wPalette = setRun.palette()
+            bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
+            self.setTgtColor = bgBrush.color()
+        else:
+            self.riseTgtColor = None
+            self.setTgtColor = None
+
+    def getMinimumRunControlColor(self):
+        minColor = QColor()
+        minColor.setNamedColor("darkGray")
+
+        return minColor
+
+    def getTargetColor(self, minColor, maxColor, fraction):
+        minRed = minColor.red()
+        minGreen = minColor.green()
+        minBlue = minColor.blue()
+
+        maxRed = maxColor.red()
+        maxGreen = maxColor.green()
+        maxBlue = maxColor.blue()
+
+        if (minRed > maxRed):
+            return maxColor
+        if (minGreen > maxGreen):
+            return maxColor
+        if (minBlue > maxBlue):
+            return maxColor
+
+        newRed = int(minRed + ((maxRed - minRed) * fraction))
+        newGreen = int(minGreen + ((maxGreen - minGreen) * fraction))
+        newBlue = int(minBlue + ((maxBlue - minBlue) * fraction))
+        newColor = QColor(newRed, newGreen, newBlue)
+
+        return newColor
+
+    def recolorRiseRunBackground(self):
+        riseRun = self.findChild(QLineEdit, "lnRiseRun")
+        if (riseRun is not None) and (self.riseTgtColor is not None):
+            minColor = self.getMinimumRunControlColor()
+
+            wPalette = riseRun.palette()
+            bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
+
+            if self.itsNighttime():
+                x = self.getTimeNowFractionOfLightPeriod()
+                # debugMessage("Fraction of light period: {}".format(x))
+
+                curColor = self.getTargetColor(minColor, self.riseTgtColor, x)
+            else:
+                curColor = minColor
+
+            bgBrush.setColor(curColor)
+            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrush)
+            riseRun.setPalette(wPalette)
+
+    def recolorSetRunBackground(self):
+        setRun = self.findChild(QLineEdit, "lnSetRun")
+        if (setRun is not None) and (self.setTgtColor is not None):
+            minColor = self.getMinimumRunControlColor()
+
+            wPalette = setRun.palette()
+            bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
+
+            if self.itsDaytime():
+                x = self.getTimeNowFractionOfLightPeriod()
+                # debugMessage("Fraction of light period: {}".format(x))
+
+                curColor = self.getTargetColor(minColor, self.setTgtColor, x)
+            else:
+                curColor = minColor
+
+            bgBrush.setColor(curColor)
+            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrush)
+            setRun.setPalette(wPalette)
+
     def tick(self):
         # Set the current time in the math library
         setSystemTime()
@@ -348,6 +500,11 @@ class QtSunsetter(QWidget):
         self.showTime(None)
         self.showSunriseTime()
         self.showSunsetTime()
+
+        # debugMessage("    Daytime as a fraction of day: {}".format(self.daytimeFractionOfDay()))
+        # debugMessage("  Nighttime as a fraction of day: {}".format(self.nighttimeFractionOfDay()))
+        # debugMessage("Fraction of light period elapsed: {}".format(self.getTimeNowFractionOfLightPeriod()))
+        # debugMessage("Duration of light period elapsed: {}".format(self.getTimeNowDurationOfLightPeriod()))
 
         # How long to the next solar horizon crossing
         diffTime = self.getTimeToNextHorizonCrossing()
@@ -375,6 +532,9 @@ class QtSunsetter(QWidget):
             timeText = "Remaining time until {}:".format(self.nextCrossing)
             labrTimePrompt.setText(timeText)
             labrTimeValue.setText("{}".format(diffTime))
+
+        self.recolorRiseRunBackground()
+        self.recolorSetRunBackground()
 
     def signLatLonDirection(self, location, direction):
         # If the direction is South or West, the position is negative
