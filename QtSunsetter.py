@@ -24,6 +24,7 @@ import os
 import time
 import datetime
 import re
+import subprocess
 
 from PySide2.QtWidgets import QApplication, QWidget, QPushButton, QDialog
 from PySide2.QtWidgets import QLineEdit, QLabel, QComboBox, QCheckBox
@@ -43,6 +44,7 @@ from QtSsMath import getLongitude, getHomeTZ, setHomeTZ, setLocalTZ
 class QtSunsetter(QWidget):
     def __init__(self):
         super(QtSunsetter, self).__init__()
+        self.nextCrossing = None
         setLocalTZ()
         self.loadConfig()
         self.timer = QTimer(self)
@@ -265,6 +267,35 @@ class QtSunsetter(QWidget):
         # Implicitly not daytime
         return not self.itsDaytime()
 
+    def runEventProgram(self, fileName):
+        if (fileName is not None) and (fileName != ""):
+            fInfo = QFileInfo(fileName)
+            if (fInfo.exists()) and (fInfo.isExecutable()):
+                sproc = subprocess.Popen([fileName],
+                                         stdout=subprocess.PIPE,
+                                         stderr=subprocess.STDOUT)
+                stdout, stderr = sproc.communicate()
+                if stderr is None:
+                    mornInfo = stdout.splitlines()
+                    for aLine in mornInfo:
+                        uText = str(aLine, "utf-8")
+                        print("<: {}".format(uText))
+                else:
+                    mornErr = stdout.splitlines()
+                    for aLine in mornErr:
+                        uText = str(aLine, "utf-8")
+                        print("<: {}".format(uText))
+
+    def sunriseReached(self):
+        riseRun = self.findChild(QLineEdit, "lnRiseRun")
+        if riseRun is not None:
+            self.runEventProgram(riseRun.text())
+
+    def sunsetReached(self):
+        setRun = self.findChild(QLineEdit, "lnSetRun")
+        if setRun is not None:
+            self.runEventProgram(setRun.text())
+
     def getTimeToNextHorizonCrossing(self):
         nowDelta = self.getTimeNowDeltaWithCorrection()
         ssDelta = self.getSunsetDelta()
@@ -278,7 +309,8 @@ class QtSunsetter(QWidget):
                 # After sunset but before midnight we need to combine today and
                 # tomorrow, plus a second because the day ends at 23:59:59
                 endOfDay = datetime.timedelta(hours=23, minutes=59, seconds=59)
-                diffTime = endOfDay - nowDelta + 1
+                plusSecond = datetime.timedelta(hours=0, minutes=0, seconds=1)
+                diffTime = endOfDay - nowDelta + plusSecond
                 diffTime += srDelta
             else:
                 # After midnight
@@ -320,15 +352,28 @@ class QtSunsetter(QWidget):
         # How long to the next solar horizon crossing
         diffTime = self.getTimeToNextHorizonCrossing()
         if self.itsDaytime():
-            nextCrossing = "sunset"
+            if self.nextCrossing is None:
+                self.nextCrossing = "sunset"
+            elif self.nextCrossing == "sunrise":
+                self.sunriseReached()
+
+                # Now we are pending sunset
+                self.nextCrossing = "sunset"
         else:
-            nextCrossing = "sunrise"
+            if self.nextCrossing is None:
+                self.nextCrossing = "sunrise"
+            elif self.nextCrossing == "sunset":
+                self.sunsetReached()
+
+                # Now we are pending sunrise
+                self.nextCrossing = "sunrise"
 
         # Display it with a relevant prompt
         labrTimePrompt = self.findChild(QLabel, "rTimePrompt")
         labrTimeValue = self.findChild(QLabel, "rTimeValue")
         if (labrTimePrompt is not None) and (labrTimeValue is not None):
-            labrTimePrompt.setText("Remaining time until {}:".format(nextCrossing))
+            timeText = "Remaining time until {}:".format(self.nextCrossing)
+            labrTimePrompt.setText(timeText)
             labrTimeValue.setText("{}".format(diffTime))
 
     def signLatLonDirection(self, location, direction):
@@ -550,6 +595,97 @@ class QtSunsetter(QWidget):
         debugMessage("TEMP FILE: {}".format(tmpFilename))
         return tmpFilename
 
+    def latlonConfig(self, cfgLine):
+        isLat = True
+        nVal = None
+        m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is None:
+            isLat = False
+            m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
+                          cfgLine,
+                          flags=re.IGNORECASE)
+        if m is not None:
+            val = m.group(1)
+            try:
+                nVal = float(val)
+            except Exception:
+                nVal = 0.0
+
+            if isLat is True:
+                setLatitude(nVal)
+                debugMessage("lat = {} => {}".format(val, nVal))
+            else:
+                setLongitude(nVal)
+                debugMessage("lon = {} => {}".format(val, nVal))
+
+        return (nVal is not None)
+
+    def timezoneConfig(self, cfgLine):
+        nTZ = None
+        m = re.search('^timezone=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            tz = m.group(1)
+            try:
+                nTZ = float(tz)
+            except Exception:
+                nTZ = 0.0
+            setHomeTZ(nTZ * 3600.0)
+            debugMessage("TZ = {} => {}".format(tz, nTZ))
+
+        return (nTZ is not None)
+
+    def correctTimezoneConfig(self, cfgLine):
+        result = False
+        m = re.search('^CorrectForSystemTimezone$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            self.CorrectForSysTZ = True
+            result = True
+            debugMessage("CorrectForSystemTimezone ENABLED")
+
+        return result
+
+    def sunriseRunConfig(self, cfgLine):
+        result = False
+        m = re.search('^sunriserun=(.*)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            fileName = m.group(1)
+            fInfo = QFileInfo(fileName)
+            if (fInfo.exists()) and (fInfo.isExecutable()):
+                self.initRiseRun = fileName
+                result = True
+                riseRun = self.findChild(QLineEdit, "lnRiseRun")
+                if riseRun is not None:
+                    riseRun.setText("{}".format(fileName))
+            debugMessage("sunrise program = {}".format(fileName))
+
+        return result
+
+    def sunsetRunConfig(self, cfgLine):
+        result = False
+        m = re.search('^sunsetrun=(.*)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            fileName = m.group(1)
+            fInfo = QFileInfo(fileName)
+            if (fInfo.exists()) and (fInfo.isExecutable()):
+                self.initSetRun = fileName
+                result = True
+                setRun = self.findChild(QLineEdit, "lnSetRun")
+                if setRun is not None:
+                    setRun.setText("{}".format(fileName))
+            debugMessage("sunset program = {}".format(fileName))
+
+        return result
+
     def processConfigLine(self, theLine):
         # Comments begin with a # character, remove them
         m = re.search('^(.+)\\#.+$', theLine)
@@ -561,85 +697,28 @@ class QtSunsetter(QWidget):
             return
 
         # If we have a latitude (signed decimal)
-        m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            lat = m.group(1)
-            try:
-                nLat = float(lat)
-            except Exception:
-                nLat = 0.0
-            setLatitude(nLat)
-            debugMessage("lat = {} => {}".format(lat, nLat))
+        if self.latlonConfig(theLine) is True:
             return
 
         # If we have a longitude (signed decimal)
-        m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            lon = m.group(1)
-            try:
-                nLon = float(lon)
-            except Exception:
-                nLon = 0.0
-            setLongitude(nLon)
-            debugMessage("lon = {} => {}".format(lon, nLon))
+        if self.latlonConfig(theLine) is True:
             return
 
         # If we have a timezone (signed decimal clock offset in hours)
-        m = re.search('^timezone=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            tz = m.group(1)
-            try:
-                nTZ = float(tz)
-            except Exception:
-                nTZ = 0.0
-            setHomeTZ(nTZ * 3600.0)
-            debugMessage("TZ = {} => {}".format(tz, nTZ))
+        if self.timezoneConfig(theLine) is True:
             return
 
         # If we are to correct system time from system timezone to
         # configured timezone
-        m = re.search('^CorrectForSystemTimezone$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            self.CorrectForSysTZ = True
-            debugMessage("CorrectForSystemTimezone ENABLED")
+        if self.correctTimezoneConfig(theLine) is True:
             return
 
         # If we have a program to run on sunrise
-        m = re.search('^sunriserun=(.+)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            fileName = m.group(1)
-            fInfo = QFileInfo(fileName)
-            if (fInfo.exists()) and (fInfo.isExecutable()):
-                self.initRiseRun = fileName
-                riseRun = self.findChild(QLineEdit, "lnRiseRun")
-                if riseRun is not None:
-                    riseRun.setText("{}".format(fileName))
-            debugMessage("sunrise program = {}".format(fileName))
+        if self.sunriseRunConfig(theLine) is True:
             return
 
         # If we have a program to run on sunset
-        m = re.search('^sunsetrun=(.+)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            fileName = m.group(1)
-            fInfo = QFileInfo(fileName)
-            if (fInfo.exists()) and (fInfo.isExecutable()):
-                self.initSetRun = fileName
-                setRun = self.findChild(QLineEdit, "lnSetRun")
-                if setRun is not None:
-                    setRun.setText("{}".format(fileName))
-            debugMessage("sunset program = {}".format(fileName))
+        if self.sunsetRunConfig(theLine) is True:
             return
 
         debugMessage("Unprocessed config line: {}".format(theLine))
@@ -685,6 +764,94 @@ class QtSunsetter(QWidget):
         outLine += "\n"
         outStream << outLine
 
+    def latLonProcessOutput(self, cfgLine):
+        outLine = None
+        isLat = True
+        m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is None:
+            isLat = False
+            m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
+                          cfgLine,
+                          flags=re.IGNORECASE)
+        if m is not None:
+            if isLat:
+                # If we haven't already saved latitude
+                if not self.savedLat:
+                    # Re-build using the current latitude
+                    outLine = "latitude={}".format(getLatitude())
+                    self.savedLat = True
+                else:
+                    # Saved it already, make the line a comment
+                    outLine = "# "
+            else:
+                # If we haven't already saved longitude
+                if not self.savedLon:
+                    # Re-build using the current longitude
+                    outLine = "longitude={}".format(getLongitude())
+                    self.savedLon = True
+                else:
+                    # Saved it already, make the line a comment
+                    outLine = "#"
+
+        return outLine
+
+    def timezoneProcessOutput(self, cfgLine):
+        outLine = None
+        m = re.search('^timezone=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            # If we haven't already saved it
+            if not self.savedTZ:
+                # Re-build using the current timezone
+                outLine = "timezone={}".format(getHomeTZ())
+                self.savedTZ = True
+            else:
+                # Saved it already
+                outLine = "#"
+
+        return outLine
+
+    def riseRunProcessOutput(self, cfgLine):
+        outLine = None
+        m = re.search('^sunriserun=(.*)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            riseRun = self.findChild(QLineEdit, "lnRiseRun")
+            if riseRun is not None:
+                # If we haven't already saved it
+                if not self.savedRiseRun:
+                    # Re-build using the current value
+                    outLine = "sunriserun={}".format(riseRun.text())
+                    self.savedRiseRun = True
+                else:
+                    # Saved it already
+                    outLine = "#"
+
+        return outLine
+
+    def setRunProcessOutput(self, cfgLine):
+        outLine = None
+        m = re.search('^sunsetrun=(.+)$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            setRun = self.findChild(QLineEdit, "lnSetRun")
+            if setRun is not None:
+                # If we haven't already saved it
+                if not self.savedSetRun:
+                    # Re-build using the current value
+                    outLine = "sunsetrun={}".format(setRun.text())
+                    self.savedSetRun = True
+                else:
+                    # Saved it already
+                    outLine = "#"
+
+        return outLine
+
     def processOutputConfigLine(self, outStream, theLine):
         if (outStream is None) or (theLine is None):
             return
@@ -701,54 +868,6 @@ class QtSunsetter(QWidget):
         else:
             theGap = None
             theComment = None
-
-        # If we have a latitude (signed decimal)
-        m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            # If we haven't already saved it
-            if not self.savedLat:
-                # Re-build using the current latitude
-                outLine = "latitude={}".format(getLatitude())
-                self.savedLat = True
-            else:
-                # Saved it already, make the line a comment
-                outLine = "#" + outLine
-                theGap = None
-                theComment = None
-
-        # If we have a longitude (signed decimal)
-        m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            # If we haven't already saved it
-            if not self.savedLon:
-                # Re-build using the current longitude
-                outLine = "longitude={}".format(getLongitude())
-                self.savedLon = True
-            else:
-                # Saved it already, make the line a comment
-                outLine = "#" + outLine
-                theGap = None
-                theComment = None
-
-        # If we have a timezone (signed decimal clock offset in hours)
-        m = re.search('^timezone=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            # If we haven't already saved it
-            if not self.savedTZ:
-                # Re-build using the current timezone
-                outLine = "timezone={}".format(getHomeTZ())
-                self.savedTZ = True
-            else:
-                # Saved it already, make the line a comment
-                outLine = "#" + outLine
-                theGap = None
-                theComment = None
 
         # If we are to correct system time based on system timezone and
         # configured timezone (present is ON, not-present is OFF)
@@ -767,42 +886,30 @@ class QtSunsetter(QWidget):
                     outLine = ""
 
             self.savedCorrectForSysTZ = True
+        else:
+            # If we have a latitude or longitude (signed decimal)
+            tmpLine = self.latLonProcessOutput(theLine)
+            if tmpLine is None:
+                # If we have a timezone (signed decimal clock offset in hours)
+                tmpLine = self.timezoneProcessOutputLine(theLine)
+                if tmpLine is None:
+                    # If we have a program to run at sunrise (string)
+                    tmpLine = self.riseRunProcessOutputLine(theLine)
+                    if tmpLine is None:
+                        # If we have a program to run at sunset (string)
+                        tmpLine = self.setRunProcessOutputLine(theLine)
 
-            # If we have a program to run at sunrise (string)
-            riseRun = self.findChild(QLineEdit, "lnRiseRun")
-            if riseRun is not None:
-                m = re.search('^sunriserun=(\\.+)$',
-                              theLine,
-                              flags=re.IGNORECASE)
-                if m is not None:
-                    # If we haven't already saved it
-                    if not self.savedRiseRun:
-                        # Re-build using the current value
-                        outLine = "sunriserun={}".format(riseRun.text())
-                        self.savedRiseRun = True
-                    else:
-                        # Saved it already, make the line a comment
-                        outLine = "#" + outLine
-                        theGap = None
-                        theComment = None
-
-            # If we have a program to run at sunset (string)
-            setRun = self.findChild(QLineEdit, "lnSetRun")
-            if setRun is not None:
-                m = re.search('^sunsetrun=(\\.+)$',
-                              theLine,
-                              flags=re.IGNORECASE)
-                if m is not None:
-                    # If we haven't already saved it
-                    if not self.savedSetRun:
-                        # Re-build using the current value
-                        outLine = "sunsetrun={}".format(setRun.text())
-                        self.savedSetRun = True
-                    else:
-                        # Saved it already, make the line a comment
-                        outLine = "#" + outLine
-                        theGap = None
-                        theComment = None
+            # If we get here with tmpLine not None we can treat it generically
+            # for all cases
+            if tmpLine is not None:
+                # not saved already, tmpLine is the output line
+                if tmpLine != "#":
+                    outLine = tmpLine
+                else:
+                    # Saved it already, make the line a comment
+                    outLine = "# " + outLine
+                    theGap = None
+                    theComment = None
 
         self.saveConfigLine(outStream, outLine, theGap, theComment)
 
@@ -870,7 +977,7 @@ class QtSunsetter(QWidget):
                 tmpFile.rename(cfgFilename)
 
 
-#disableDebug()
+# disableDebug()
 enableDebug()
 
 if __name__ == "__main__":
