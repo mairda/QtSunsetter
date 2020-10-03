@@ -458,7 +458,8 @@ class QtSunsetter(QWidget):
             minColor = self.getMinimumRunControlColor()
 
             wPalette = riseRun.palette()
-            bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
+            bgBrushActv = wPalette.brush(QPalette.Active, QPalette.Base)
+            bgBrushInactv = wPalette.brush(QPalette.Inactive, QPalette.Base)
 
             if self.itsNighttime():
                 x = self.getTimeNowFractionOfLightPeriod()
@@ -468,8 +469,10 @@ class QtSunsetter(QWidget):
             else:
                 curColor = minColor
 
-            bgBrush.setColor(curColor)
-            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrush)
+            bgBrushActv.setColor(curColor)
+            bgBrushInactv.setColor(curColor)
+            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrushActv)
+            wPalette.setBrush(QPalette.Inactive, QPalette.Base, bgBrushInactv)
             riseRun.setPalette(wPalette)
 
     def recolorSetRunBackground(self):
@@ -478,7 +481,8 @@ class QtSunsetter(QWidget):
             minColor = self.getMinimumRunControlColor()
 
             wPalette = setRun.palette()
-            bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
+            bgBrushActv = wPalette.brush(QPalette.Active, QPalette.Base)
+            bgBrushInactv = wPalette.brush(QPalette.Inactive, QPalette.Base)
 
             if self.itsDaytime():
                 x = self.getTimeNowFractionOfLightPeriod()
@@ -488,8 +492,10 @@ class QtSunsetter(QWidget):
             else:
                 curColor = minColor
 
-            bgBrush.setColor(curColor)
-            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrush)
+            bgBrushActv.setColor(curColor)
+            bgBrushInactv.setColor(curColor)
+            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrushActv)
+            wPalette.setBrush(QPalette.Inactive, QPalette.Base, bgBrushInactv)
             setRun.setPalette(wPalette)
 
     def tick(self):
