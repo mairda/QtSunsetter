@@ -415,13 +415,20 @@ class QtSunsetter(QWidget):
         if (riseRun is not None) and (setRun is not None):
             wPalette = riseRun.palette()
             bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
-            self.riseTgtColor = bgBrush.color()
+            self.actvRiseTgtColor = bgBrush.color()
+            bgBrush = wPalette.brush(QPalette.Inactive, QPalette.Base)
+            self.inactvRiseTgtColor = bgBrush.color()
+
             wPalette = setRun.palette()
             bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
-            self.setTgtColor = bgBrush.color()
+            self.actvSetTgtColor = bgBrush.color()
+            bgBrush = wPalette.brush(QPalette.Inactive, QPalette.Base)
+            self.inactvSetTgtColor = bgBrush.color()
         else:
-            self.riseTgtColor = None
-            self.setTgtColor = None
+            self.actvRiseTgtColor = None
+            self.inactvRiseTgtColor = None
+            self.actvSetTgtColor = None
+            self.inactvSetTgtColor = None
 
     def getMinimumRunControlColor(self):
         minColor = QColor()
@@ -454,7 +461,9 @@ class QtSunsetter(QWidget):
 
     def recolorRiseRunBackground(self):
         riseRun = self.findChild(QLineEdit, "lnRiseRun")
-        if (riseRun is not None) and (self.riseTgtColor is not None):
+        if (riseRun is not None) and\
+                (self.actvRiseTgtColor is not None) and\
+                (self.inactvRiseTgtColor is not None):
             minColor = self.getMinimumRunControlColor()
 
             wPalette = riseRun.palette()
@@ -465,19 +474,27 @@ class QtSunsetter(QWidget):
                 x = self.getTimeNowFractionOfLightPeriod()
                 # debugMessage("Fraction of light period: {}".format(x))
 
-                curColor = self.getTargetColor(minColor, self.riseTgtColor, x)
+                curColorActv = self.getTargetColor(minColor,
+                                                   self.actvRiseTgtColor,
+                                                   x)
+                curColorInactv = self.getTargetColor(minColor,
+                                                     self.inactvRiseTgtColor,
+                                                     x)
             else:
-                curColor = minColor
+                curColorActv = minColor
+                curColorInactv = minColor
 
-            bgBrushActv.setColor(curColor)
-            bgBrushInactv.setColor(curColor)
+            bgBrushActv.setColor(curColorActv)
+            bgBrushInactv.setColor(curColorInactv)
             wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrushActv)
             wPalette.setBrush(QPalette.Inactive, QPalette.Base, bgBrushInactv)
             riseRun.setPalette(wPalette)
 
     def recolorSetRunBackground(self):
         setRun = self.findChild(QLineEdit, "lnSetRun")
-        if (setRun is not None) and (self.setTgtColor is not None):
+        if (setRun is not None) and\
+                (self.actvSetTgtColor is not None) and\
+                (self.inactvSetTgtColor is not None):
             minColor = self.getMinimumRunControlColor()
 
             wPalette = setRun.palette()
@@ -488,12 +505,17 @@ class QtSunsetter(QWidget):
                 x = self.getTimeNowFractionOfLightPeriod()
                 # debugMessage("Fraction of light period: {}".format(x))
 
-                curColor = self.getTargetColor(minColor, self.setTgtColor, x)
+                curColorActv = self.getTargetColor(minColor,
+                                                   self.actvSetTgtColor,
+                                                   x)
+                curColorInactv = self.getTargetColor(minColor,
+                                                     self.inactvSetTgtColor,
+                                                     x)
             else:
                 curColor = minColor
 
-            bgBrushActv.setColor(curColor)
-            bgBrushInactv.setColor(curColor)
+            bgBrushActv.setColor(curColorActv)
+            bgBrushInactv.setColor(curColorInactv)
             wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrushActv)
             wPalette.setBrush(QPalette.Inactive, QPalette.Base, bgBrushInactv)
             setRun.setPalette(wPalette)
