@@ -445,16 +445,19 @@ class QtSunsetter(QWidget):
         maxGreen = maxColor.green()
         maxBlue = maxColor.blue()
 
-        if (minRed > maxRed):
-            return maxColor
-        if (minGreen > maxGreen):
-            return maxColor
-        if (minBlue > maxBlue):
-            return maxColor
+        if (maxRed >= minRed):
+            newRed = int(minRed + ((maxRed - minRed) * fraction))
+        else:
+            newRed = int(maxRed + ((minRed - maxRed) * fraction))
+        if (maxGreen >= minGreen):
+            newGreen = int(minGreen + ((maxGreen - minGreen) * fraction))
+        else:
+            newGreen = int(maxGreen + ((minGreen - maxGreen) * fraction))
+        if (maxBlue >= minBlue):
+            newBlue = int(minBlue + ((maxBlue - minBlue) * fraction))
+        else:
+            newBlue = int(maxBlue + ((minBlue - maxBlue) * fraction))
 
-        newRed = int(minRed + ((maxRed - minRed) * fraction))
-        newGreen = int(minGreen + ((maxGreen - minGreen) * fraction))
-        newBlue = int(minBlue + ((maxBlue - minBlue) * fraction))
         newColor = QColor(newRed, newGreen, newBlue)
 
         return newColor
