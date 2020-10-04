@@ -512,7 +512,8 @@ class QtSunsetter(QWidget):
                                                      self.inactvSetTgtColor,
                                                      x)
             else:
-                curColor = minColor
+                curColorActv = minColor
+                curColorInactv = minColor
 
             bgBrushActv.setColor(curColorActv)
             bgBrushInactv.setColor(curColorInactv)
