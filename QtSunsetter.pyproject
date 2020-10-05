@@ -1,3 +1,3 @@
 {
-    "files": ["QtSunsetter.py","QtSsMath.py","QtSsDebug.py","QtSsLocationDialog.py","LICENSE","QtSsMainWindow.ui","QtSsLocationDialog.ui","README.md","Sunsetter.py"]
+    "files": ["LICENSE","QtSsMainWindow.ui","QtSsMath.py","README.md","QtSsLocationDialog.py","QtSsDebug.py","Sunsetter.py","QtSunsetter.py","QtSsLocationDialog.ui","QtSsTODMath.py"]
 }

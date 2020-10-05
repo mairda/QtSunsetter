@@ -21,8 +21,6 @@
 
 import sys
 import os
-import time
-import datetime
 import re
 import subprocess
 
@@ -36,10 +34,19 @@ from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsDialog
 # from QtSsLocation import Ui_QtSsDialog
-from QtSsDebug import debugMessage, disableDebug, enableDebug, debugIsEnabled
-from QtSsMath import LocalSunrise, LocalSunset, timeFromDayFraction
+from QtSsTODMath import getTimeNowWithCorrection, getSunriseTime, getSunsetTime
+from QtSsTODMath import itsDaytime, itsNighttime
+from QtSsTODMath import getCorrectForSysTZ, setCorrectForSysTZ
+from QtSsTODMath import getTimeNowFractionOfLightPeriod
+from QtSsTODMath import getTimeToNextHorizonCrossing
+# from QtSsTODMath import getTimeNowDeltaWithCorrection
+# from QtSsTODMath import getSunriseDelta
+# from QtSsTODMath import daytimeFractionOfDay
+# from QtSsTODMath import nighttimeFractionOfDay
+# from QtSsTODMath import getTimeNowDurationOfLightPeriod
 from QtSsMath import setLatitude, setLongitude, getLatitude, setSystemTime
 from QtSsMath import getLongitude, getHomeTZ, setHomeTZ, setLocalTZ
+from QtSsDebug import debugMessage, disableDebug, enableDebug, debugIsEnabled
 
 
 class QtSunsetter(QWidget):
@@ -191,151 +198,6 @@ class QtSunsetter(QWidget):
             locText = "{} {} {} {}".format(nLat, latDir[0], nLon, lonDir[0])
             ctrlLocation.setText(locText)
 
-    def getTimeNow(self):
-        systemTime = time.localtime()
-        return datetime.time(systemTime[3], systemTime[4], systemTime[5])
-
-    def getTimeNowDelta(self):
-        TimeNow = self.getTimeNow()
-
-        return datetime.timedelta(hours=TimeNow.hour,
-                                  minutes=TimeNow.minute,
-                                  seconds=TimeNow.second)
-
-    def getTimeNowFractionofDay(self):
-        timeNow = self.getTimeNowWithCorrection()
-        y = timeNow.hour * 3600.0
-        y += timeNow.minute * 60.0
-        y += timeNow.second
-        return (y / 86400.0)
-
-    def getTimeNowWithCorrection(self):
-        timeNow = self.getTimeNow()
-        correctHour = timeNow.hour
-        if self.CorrectForSysTZ is True:
-            systemTime = time.localtime()
-            sysTZ = 1.0 * systemTime.tm_gmtoff
-            sysTZ /= 3600.0
-            usingTZ = getHomeTZ()
-
-            correction = int(usingTZ - sysTZ)
-
-            correctHour += correction
-            while correctHour < 0:
-                correctHour += 24
-            while correctHour > 23:
-                correctHour -= 24
-
-        correctedTime = datetime.time(correctHour,
-                                      timeNow.minute,
-                                      timeNow.second)
-        # debugMessage("UsingTZ: {}, SysTZ: {}, Correction: {}, Hour: {} => {}".format(usingTZ, sysTZ, correction, timeNow.hour, correctHour))
-
-        return correctedTime
-
-    def getTimeNowDeltaWithCorrection(self):
-        TimeNow = self.getTimeNowWithCorrection()
-
-        return datetime.timedelta(hours=TimeNow.hour,
-                                  minutes=TimeNow.minute,
-                                  seconds=TimeNow.second)
-
-    def getSunriseFractionOfDay(self):
-        Today = datetime.date.today()
-        aTime = datetime.time(0, 6, 0)
-
-        return LocalSunrise(Today, aTime)
-
-    def getSunsetFractionOfDay(self):
-        Today = datetime.date.today()
-        aTime = datetime.time(0, 6, 0)
-
-        return LocalSunset(Today, aTime)
-
-    def getSunriseTime(self):
-        x = self.getSunriseFractionOfDay()
-        return timeFromDayFraction(x)
-
-    def getSunsetTime(self):
-        x = self.getSunsetFractionOfDay()
-        return timeFromDayFraction(x)
-
-    def getSunriseDelta(self):
-        sRise = self.getSunriseTime()
-        return datetime.timedelta(hours=sRise.hour,
-                                  minutes=sRise.minute,
-                                  seconds=sRise.second)
-
-    def getSunsetDelta(self):
-        sSet = self.getSunsetTime()
-        return datetime.timedelta(hours=sSet.hour,
-                                  minutes=sSet.minute,
-                                  seconds=sSet.second)
-
-    def itsDaytime(self):
-        srDelta = self.getSunriseDelta()
-        ssDelta = self.getSunsetDelta()
-        nowDelta = self.getTimeNowDeltaWithCorrection()
-
-        return (nowDelta >= srDelta) and (nowDelta < ssDelta)
-
-    def itsNighttime(self):
-        # Implicitly not daytime
-        return not self.itsDaytime()
-
-    def daytimeFractionOfDay(self):
-        Today = datetime.date.today()
-        aTime = datetime.time(0, 6, 0)
-
-        r = LocalSunrise(Today, aTime)
-        s = LocalSunset(Today, aTime)
-
-        return (s - r)
-
-    def nighttimeFractionOfDay(self):
-        return (1 - self.daytimeFractionOfDay())
-
-    def daytimeDuration(self):
-        return timeFromDayFraction(self.daytimeFractionOfDay())
-
-    def nighttimeDuration(self):
-        return timeFromDayFraction(self.nighttimeFractionOfDay())
-
-    # Automatically chooses daytime or nighttime
-    def getTimeNowFractionOfLightPeriod(self):
-        srDelta = self.getSunriseFractionOfDay()
-        ssDelta = self.getSunsetFractionOfDay()
-        nowDelta = self.getTimeNowFractionofDay()
-        if self.itsDaytime():
-            # Subtract sunrise from now, all as a fraction of ratio of daytime
-            elapsedFraction = nowDelta - srDelta
-            elapsedFraction /= self.daytimeFractionOfDay()
-        else:
-            # Night crosses midnight, take care
-            if nowDelta > ssDelta:
-                # Evening, subtract sunset
-                elapsedFraction = nowDelta - ssDelta
-            else:
-                # Morning, Add whole evening to current part of morning
-                elapsedFraction = 1 - ssDelta + nowDelta
-
-            # As a fraction of nighttime
-            elapsedFraction /= self.nighttimeFractionOfDay()
-
-        # debugMessage("time now as a fraction of current light period: {}".format(elapsedFraction))
-
-        return elapsedFraction
-
-    # Automatically chooses daytime or nighttime
-    def getTimeNowDurationOfLightPeriod(self):
-        elapsedFraction = self.getTimeNowFractionOfLightPeriod()
-        if self.itsDaytime():
-            elapsedFraction *= self.daytimeFractionOfDay()
-        else:
-            elapsedFraction *= self.nighttimeFractionOfDay()
-
-        return timeFromDayFraction(elapsedFraction)
-
     def runEventProgram(self, fileName):
         if (fileName is not None) and (fileName != ""):
             fInfo = QFileInfo(fileName)
@@ -365,46 +227,24 @@ class QtSunsetter(QWidget):
         if setRun is not None:
             self.runEventProgram(setRun.text())
 
-    def getTimeToNextHorizonCrossing(self):
-        nowDelta = self.getTimeNowDeltaWithCorrection()
-        ssDelta = self.getSunsetDelta()
-        if self.itsDaytime():
-            # Daytime, get the remaining fraction of the day until sunset
-            diffTime = ssDelta - nowDelta
-        else:
-            # Nighttime, get the remaining fraction of the day until sunrise
-            srDelta = self.getSunriseDelta()
-            if nowDelta > ssDelta:
-                # After sunset but before midnight we need to combine today and
-                # tomorrow, plus a second because the day ends at 23:59:59
-                endOfDay = datetime.timedelta(hours=23, minutes=59, seconds=59)
-                plusSecond = datetime.timedelta(hours=0, minutes=0, seconds=1)
-                diffTime = endOfDay - nowDelta + plusSecond
-                diffTime += srDelta
-            else:
-                # After midnight
-                diffTime = srDelta - nowDelta
-
-        return diffTime
-
     # Set a supplied time or the current time in the control
     def showTime(self, newTime):
         labTimeNow = self.findChild(QLabel, "timeNow")
         if labTimeNow is not None:
             if newTime is None:
-                TimeNow = self.getTimeNowWithCorrection()
+                TimeNow = getTimeNowWithCorrection()
             else:
                 TimeNow = newTime
             labTimeNow.setText("{}".format(TimeNow))
 
     def showSunriseTime(self):
-        sRise = self.getSunriseTime()
+        sRise = getSunriseTime()
         labSunrise = self.findChild(QLabel, "sunrise")
         if labSunrise is not None:
             labSunrise.setText("{}".format(sRise))
 
     def showSunsetTime(self):
-        sSet = self.getSunsetTime()
+        sSet = getSunsetTime()
         labSunset = self.findChild(QLabel, "sunset")
         if labSunset is not None:
             labSunset.setText("{}".format(sSet))
@@ -468,12 +308,12 @@ class QtSunsetter(QWidget):
             ctrlRun = self.findChild(QLineEdit, "lnRiseRun")
             actvTgtColor = self.actvRiseTgtColor
             inactvTgtColor = self.inactvRiseTgtColor
-            lightTime = self.itsNighttime()
+            lightTime = itsNighttime()
         else:
             ctrlRun = self.findChild(QLineEdit, "lnSetRun")
             actvTgtColor = self.actvSetTgtColor
             inactvTgtColor = self.inactvSetTgtColor
-            lightTime = self.itsDaytime()
+            lightTime = itsDaytime()
 
         # IF there is a control and colors
         if (ctrlRun is not None) and\
@@ -494,7 +334,7 @@ class QtSunsetter(QWidget):
             # rise argument
             if lightTime:
                 # Get the fraction of the light period passed
-                x = self.getTimeNowFractionOfLightPeriod()
+                x = getTimeNowFractionOfLightPeriod()
 
                 # Use it to get faded colors that fraction between min and max
                 curColorActv = self.getTargetColor(minColor,
@@ -536,14 +376,14 @@ class QtSunsetter(QWidget):
         self.showSunriseTime()
         self.showSunsetTime()
 
-        # debugMessage("    Daytime as a fraction of day: {}".format(self.daytimeFractionOfDay()))
-        # debugMessage("  Nighttime as a fraction of day: {}".format(self.nighttimeFractionOfDay()))
-        # debugMessage("Fraction of light period elapsed: {}".format(self.getTimeNowFractionOfLightPeriod()))
-        # debugMessage("Duration of light period elapsed: {}".format(self.getTimeNowDurationOfLightPeriod()))
+        # debugMessage("    Daytime as a fraction of day: {}".format(daytimeFractionOfDay()))
+        # debugMessage("  Nighttime as a fraction of day: {}".format(nighttimeFractionOfDay()))
+        # debugMessage("Fraction of light period elapsed: {}".format(getTimeNowFractionOfLightPeriod()))
+        # debugMessage("Duration of light period elapsed: {}".format(getTimeNowDurationOfLightPeriod()))
 
         # How long to the next solar horizon crossing
-        diffTime = self.getTimeToNextHorizonCrossing()
-        if self.itsDaytime():
+        diffTime = getTimeToNextHorizonCrossing()
+        if itsDaytime():
             if self.nextCrossing is None:
                 self.nextCrossing = "sunset"
             elif self.nextCrossing == "sunrise":
@@ -635,7 +475,7 @@ class QtSunsetter(QWidget):
 
             ctrlTZ.setValue(tzOffset)
 
-            ctrlCorrectTZ.setChecked(self.CorrectForSysTZ)
+            ctrlCorrectTZ.setChecked(getCorrectForSysTZ())
 
             # Repeat viewing the dialog until it has no problems or we choose
             # to ignore them
@@ -706,7 +546,7 @@ class QtSunsetter(QWidget):
 
                     # Correct our clock for a different timezone from the
                     # system clock
-                    self.CorrectForSysTZ = ctrlCorrectTZ.isChecked()
+                    setCorrectForSysTZ(ctrlCorrectTZ.isChecked())
                     break
 
                 # Retry, loop and re-show the dialog box for user correction
@@ -841,7 +681,7 @@ class QtSunsetter(QWidget):
                       cfgLine,
                       flags=re.IGNORECASE)
         if m is not None:
-            self.CorrectForSysTZ = True
+            setCorrectForSysTZ(True)
             result = True
             debugMessage("CorrectForSystemTimezone ENABLED")
 
@@ -933,14 +773,14 @@ class QtSunsetter(QWidget):
                     inStream = QTextStream(cfgFile)
                     if inStream is not None:
                         # Assume correct for system timezone is OFF
-                        self.CorrectForSysTZ = False
+                        setCorrectForSysTZ(False)
                         while not inStream.atEnd():
                             inStream.skipWhiteSpace()
                             line = inStream.readLine()
                             self.processConfigLine(line)
             else:
                 debugMessage("Config file NOT found")
-                self.CorrectForSysTZ = False
+                setCorrectForSysTZ(False)
 
     def saveConfigLine(self, outStream, outLine, theGap, theComment):
         if (outStream is None) or (outLine is None):
@@ -1072,7 +912,7 @@ class QtSunsetter(QWidget):
                       theLine,
                       flags=re.IGNORECASE)
         if m is not None:
-            if self.CorrectForSysTZ is False:
+            if getCorrectForSysTZ() is False:
                 debugMessage("CorrectForSystemTimezone DISABLED")
                 # If there's no gap and no comment then don't write an empty
                 # line as a replacement
@@ -1162,7 +1002,7 @@ class QtSunsetter(QWidget):
                 if not self.savedTZ:
                     self.processOutputConfigLine(outStream, "timezone=0")
                 if (not self.savedCorrectForSysTZ) and\
-                        (self.CorrectForSysTZ is True):
+                        (getCorrectForSysTZ() is True):
                     self.processOutputConfigLine(outStream,
                                                  "CorrectForSystemTimezone")
                 if not self.savedRiseRun:
