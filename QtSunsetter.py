@@ -462,67 +462,70 @@ class QtSunsetter(QWidget):
 
         return newColor
 
-    def recolorRiseRunBackground(self):
-        riseRun = self.findChild(QLineEdit, "lnRiseRun")
-        if (riseRun is not None) and\
-                (self.actvRiseTgtColor is not None) and\
-                (self.inactvRiseTgtColor is not None):
+    def recolorRunEditBackground(self, rise=True):
+        # Get the line edit (rise or set) and it's default background colors
+        if rise is True:
+            ctrlRun = self.findChild(QLineEdit, "lnRiseRun")
+            actvTgtColor = self.actvRiseTgtColor
+            inactvTgtColor = self.inactvRiseTgtColor
+            lightTime = self.itsNighttime()
+        else:
+            ctrlRun = self.findChild(QLineEdit, "lnSetRun")
+            actvTgtColor = self.actvSetTgtColor
+            inactvTgtColor = self.inactvSetTgtColor
+            lightTime = self.itsDaytime()
+
+        # IF there is a control and colors
+        if (ctrlRun is not None) and\
+                (actvTgtColor is not None) and\
+                (inactvTgtColor is not None):
+            # Get the assumed minimum color
             minColor = self.getMinimumRunControlColor()
 
-            wPalette = riseRun.palette()
+            # Get the control palette, active and inactive background brushes
+            # and colors
+            wPalette = ctrlRun.palette()
             bgBrushActv = wPalette.brush(QPalette.Active, QPalette.Base)
+            bgColorActv = bgBrushActv.color()
             bgBrushInactv = wPalette.brush(QPalette.Inactive, QPalette.Base)
+            bgColorInactv = bgBrushInactv.color()
 
-            if self.itsNighttime():
+            # If we are waiting for the event implied by the value of
+            # rise argument
+            if lightTime:
+                # Get the fraction of the light period passed
                 x = self.getTimeNowFractionOfLightPeriod()
-                # debugMessage("Fraction of light period: {}".format(x))
 
+                # Use it to get faded colors that fraction between min and max
                 curColorActv = self.getTargetColor(minColor,
-                                                   self.actvRiseTgtColor,
+                                                   actvTgtColor,
                                                    x)
                 curColorInactv = self.getTargetColor(minColor,
-                                                     self.inactvRiseTgtColor,
+                                                     inactvTgtColor,
                                                      x)
             else:
+                # Specified control is not the fading one, make it minimum
                 curColorActv = minColor
                 curColorInactv = minColor
 
-            bgBrushActv.setColor(curColorActv)
-            bgBrushInactv.setColor(curColorInactv)
-            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrushActv)
-            wPalette.setBrush(QPalette.Inactive, QPalette.Base, bgBrushInactv)
-            riseRun.setPalette(wPalette)
+            # Assume no palette change
+            newPalette = False
 
-    def recolorSetRunBackground(self):
-        setRun = self.findChild(QLineEdit, "lnSetRun")
-        if (setRun is not None) and\
-                (self.actvSetTgtColor is not None) and\
-                (self.inactvSetTgtColor is not None):
-            minColor = self.getMinimumRunControlColor()
-
-            wPalette = setRun.palette()
-            bgBrushActv = wPalette.brush(QPalette.Active, QPalette.Base)
-            bgBrushInactv = wPalette.brush(QPalette.Inactive, QPalette.Base)
-
-            if self.itsDaytime():
-                x = self.getTimeNowFractionOfLightPeriod()
-                # debugMessage("Fraction of light period: {}".format(x))
-
-                curColorActv = self.getTargetColor(minColor,
-                                                   self.actvSetTgtColor,
-                                                   x)
-                curColorInactv = self.getTargetColor(minColor,
-                                                     self.inactvSetTgtColor,
-                                                     x)
-            else:
-                curColorActv = minColor
-                curColorInactv = minColor
-
-            bgBrushActv.setColor(curColorActv)
-            bgBrushInactv.setColor(curColorInactv)
-            wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrushActv)
-            wPalette.setBrush(QPalette.Inactive, QPalette.Base, bgBrushInactv)
-            setRun.setPalette(wPalette)
+            # If a new active color was created, set the brush and palette
+            if not bgColorActv.__eq__(curColorActv):
+                bgBrushActv.setColor(curColorActv)
+                wPalette.setBrush(QPalette.Active, QPalette.Base, bgBrushActv)
+                newPalette = True
+            # If a new inactive color was created, set the brush and palette
+            if not bgColorInactv.__eq__(curColorInactv):
+                bgBrushInactv.setColor(curColorInactv)
+                wPalette.setBrush(QPalette.Inactive,
+                                  QPalette.Base,
+                                  bgBrushInactv)
+                newPalette = True
+            # If we did change the palette, use it for the control
+            if newPalette is True:
+                ctrlRun.setPalette(wPalette)
 
     def tick(self):
         # Set the current time in the math library
@@ -565,8 +568,10 @@ class QtSunsetter(QWidget):
             labrTimePrompt.setText(timeText)
             labrTimeValue.setText("{}".format(diffTime))
 
-        self.recolorRiseRunBackground()
-        self.recolorSetRunBackground()
+        # Re-color the background of the run at sunrise control
+        self.recolorRunEditBackground(True)
+        # Re-color the background of the run at sunset control
+        self.recolorRunEditBackground(False)
 
     def signLatLonDirection(self, location, direction):
         # If the direction is South or West, the position is negative
