@@ -3,7 +3,11 @@
 # This file contains some generic functions to perform math based on time of
 # day with awareness of day/night times and the elapsed light period
 # (day/night) with the ability to operate in h:m:s based absolute times,
-# h:m:s relative times, time differences and fractions of the day
+# h:m:s relative times, time differences and fractions of the day. Note
+# Fractions of day that are night are the fraction for the day in which the
+# calculation is made, e.g. after sunset the nighttime after midnight is not
+# added. It means that as midnight is reached the fraction will "shuffle" a
+# little.
 #
 # Version: 1.0
 # Copyright (C) 2020/10/05 David A. Mair
@@ -120,6 +124,31 @@ def getSunriseDelta():
                               seconds=sRise.second)
 
 
+# Get tomorrow's sunrise time as a fraction of a 24 hour day
+# Returns a float in the range zero to one inclusive
+def getTomorrowSunriseFractionOfDay():
+    Tomorrow = datetime.date.fromtimestamp(86400.0 + time.time())
+    aTime = datetime.time(0, 6, 0)
+
+    return LocalSunrise(Tomorrow, aTime)
+
+
+# Get tomorrow's sunrise time
+# Returns a datetime object (h:m:s)
+def getTomorrowSunriseTime():
+    x = getTomorrowSunriseFractionOfDay()
+    return timeFromDayFraction(x)
+
+
+# Get tomorrow's sunrise time
+# Returns a timedelta object
+def getTomorrowSunriseDelta():
+    sRise = getTomorrowSunriseTime()
+    return datetime.timedelta(hours=sRise.hour,
+                              minutes=sRise.minute,
+                              seconds=sRise.second)
+
+
 # Get today's sunset time as a fraction of a 24 hour day
 # Returns a float in the range zero to one inclusive
 def getSunsetFractionOfDay():
@@ -161,6 +190,16 @@ def itsNighttime():
     # Implicitly not daytime
     return not itsDaytime()
 
+
+# Return trus if it's after sunset but before midnight
+# Returns a bool
+def itsAfterSunsetToday():
+    ssDelta = getSunsetFractionOfDay()
+    nowDelta = getTimeNowFractionofDay()
+    if nowDelta > ssDelta:
+        return True
+
+    return False
 
 # Returns the fraction of the day that is daytime
 # Returns a float with value greater than zero and less than one
@@ -206,7 +245,7 @@ def getTimeNowFractionOfLightPeriod():
         elapsedFraction /= daytimeFractionOfDay()
     else:
         # Night crosses midnight, take care
-        if nowDelta > ssDelta:
+        if itsAfterSunsetToday():
             # Evening, subtract sunset
             elapsedFraction = nowDelta - ssDelta
         else:
@@ -244,17 +283,18 @@ def getTimeToNextHorizonCrossing():
         # Daytime, get the remaining fraction of the day until sunset
         diffTime = ssDelta - nowDelta
     else:
-        # Nighttime, get the remaining fraction of the day until sunrise
-        srDelta = getSunriseDelta()
-        if nowDelta > ssDelta:
+        # Nighttime, get the remaining fraction of the day until next sunrise
+        if itsAfterSunsetToday():
             # After sunset but before midnight we need to combine today and
             # tomorrow, plus a second because the day ends at 23:59:59
+            srDelta = getTomorrowSunriseDelta()
             endOfDay = datetime.timedelta(hours=23, minutes=59, seconds=59)
             plusSecond = datetime.timedelta(hours=0, minutes=0, seconds=1)
             diffTime = endOfDay - nowDelta + plusSecond
             diffTime += srDelta
         else:
-            # After midnight
+            # After midnight, use time until sunrise today
+            srDelta = getSunriseDelta()
             diffTime = srDelta - nowDelta
 
     return diffTime

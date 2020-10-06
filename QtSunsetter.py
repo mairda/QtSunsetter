@@ -35,10 +35,10 @@ from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsDialog
 # from QtSsLocation import Ui_QtSsDialog
 from QtSsTODMath import getTimeNowWithCorrection, getSunriseTime, getSunsetTime
-from QtSsTODMath import itsDaytime, itsNighttime
+from QtSsTODMath import itsDaytime, itsNighttime, getTomorrowSunriseTime
 from QtSsTODMath import getCorrectForSysTZ, setCorrectForSysTZ
 from QtSsTODMath import getTimeNowFractionOfLightPeriod
-from QtSsTODMath import getTimeToNextHorizonCrossing
+from QtSsTODMath import getTimeToNextHorizonCrossing, itsAfterSunsetToday
 # from QtSsTODMath import getTimeNowDeltaWithCorrection
 # from QtSsTODMath import getSunriseDelta
 # from QtSsTODMath import daytimeFractionOfDay
@@ -67,6 +67,10 @@ class QtSunsetter(QWidget):
         ui_file.close()
 
         self.getTargetLineEditColor()
+
+        # Not yet shown any sunrise or sunset times
+        self.shownSRise = None
+        self.shownSSet = None
 
         # Cause the time to set
         self.tick()
@@ -198,24 +202,32 @@ class QtSunsetter(QWidget):
             locText = "{} {} {} {}".format(nLat, latDir[0], nLon, lonDir[0])
             ctrlLocation.setText(locText)
 
-    def runEventProgram(self, fileName):
+    # Return True if fileName argument is an existing, executable file
+    # else return False
+    def isRunnableFile(self, fileName):
+        result = False
         if (fileName is not None) and (fileName != ""):
             fInfo = QFileInfo(fileName)
             if (fInfo.exists()) and (fInfo.isExecutable()):
-                sproc = subprocess.Popen([fileName],
-                                         stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT)
-                stdout, stderr = sproc.communicate()
-                if stderr is None:
-                    mornInfo = stdout.splitlines()
-                    for aLine in mornInfo:
-                        uText = str(aLine, "utf-8")
-                        print("<: {}".format(uText))
-                else:
-                    mornErr = stdout.splitlines()
-                    for aLine in mornErr:
-                        uText = str(aLine, "utf-8")
-                        print("<: {}".format(uText))
+                result = True
+        return result
+
+    def runEventProgram(self, fileName):
+        if self.isRunnableFile(fileName) is True:
+            sproc = subprocess.Popen([fileName],
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT)
+            stdout, stderr = sproc.communicate()
+            if stderr is None:
+                mornInfo = stdout.splitlines()
+                for aLine in mornInfo:
+                    uText = str(aLine, "utf-8")
+                    print("<: {}".format(uText))
+            else:
+                mornErr = stdout.splitlines()
+                for aLine in mornErr:
+                    uText = str(aLine, "utf-8")
+                    print("<: {}".format(uText))
 
     def sunriseReached(self):
         riseRun = self.findChild(QLineEdit, "lnRiseRun")
@@ -238,16 +250,25 @@ class QtSunsetter(QWidget):
             labTimeNow.setText("{}".format(TimeNow))
 
     def showSunriseTime(self):
+        # Get today's sunrise time and show it if it is not what we last showed
+        # NB: Although we use tomorrow's sunrise to give the time until sunrise
+        # after sunset has passed, we only show today's sunrise and sunset
+        # literal times
         sRise = getSunriseTime()
-        labSunrise = self.findChild(QLabel, "sunrise")
-        if labSunrise is not None:
-            labSunrise.setText("{}".format(sRise))
+        if sRise != self.shownSRise:
+            labSunrise = self.findChild(QLabel, "sunrise")
+            if labSunrise is not None:
+                labSunrise.setText("{}".format(sRise))
+                self.shownSRise = sRise
 
     def showSunsetTime(self):
+        # Get the sunset time and show it if it is not what we last showed
         sSet = getSunsetTime()
-        labSunset = self.findChild(QLabel, "sunset")
-        if labSunset is not None:
-            labSunset.setText("{}".format(sSet))
+        if sSet != self.shownSSet:
+            labSunset = self.findChild(QLabel, "sunset")
+            if labSunset is not None:
+                labSunset.setText("{}".format(sSet))
+                self.shownSSet = sSet
 
     def getTargetLineEditColor(self):
         riseRun = self.findChild(QLineEdit, "lnRiseRun")
@@ -381,7 +402,9 @@ class QtSunsetter(QWidget):
         # debugMessage("Fraction of light period elapsed: {}".format(getTimeNowFractionOfLightPeriod()))
         # debugMessage("Duration of light period elapsed: {}".format(getTimeNowDurationOfLightPeriod()))
 
-        # How long to the next solar horizon crossing
+        # How long to the next solar horizon crossing. This uses tomorrow's
+        # sunrise time when used after today's sunset. The literal sunrise
+        # sunset times displayed are always for today however
         diffTime = getTimeToNextHorizonCrossing()
         if itsDaytime():
             if self.nextCrossing is None:
@@ -401,6 +424,7 @@ class QtSunsetter(QWidget):
                 self.nextCrossing = "sunrise"
 
         # Display it with a relevant prompt
+        # DWH
         labrTimePrompt = self.findChild(QLabel, "rTimePrompt")
         labrTimeValue = self.findChild(QLabel, "rTimeValue")
         if (labrTimePrompt is not None) and (labrTimeValue is not None):
@@ -577,8 +601,7 @@ class QtSunsetter(QWidget):
                                                                 homeDir,
                                                                 "Files (*)")
             if (fileName is not None) and (fileName != ""):
-                fInfo = QFileInfo(fileName)
-                if (fInfo.exists()) and (fInfo.isExecutable()):
+                if self.isRunnableFile(fileName):
                     newFile = fileName
                 else:
                     msgTxt = "The chosen file does not exist or is not "
@@ -694,8 +717,7 @@ class QtSunsetter(QWidget):
                       flags=re.IGNORECASE)
         if m is not None:
             fileName = m.group(1)
-            fInfo = QFileInfo(fileName)
-            if (fInfo.exists()) and (fInfo.isExecutable()):
+            if self.isRunnableFile(fileName):
                 self.initRiseRun = fileName
                 result = True
                 riseRun = self.findChild(QLineEdit, "lnRiseRun")
@@ -712,8 +734,7 @@ class QtSunsetter(QWidget):
                       flags=re.IGNORECASE)
         if m is not None:
             fileName = m.group(1)
-            fInfo = QFileInfo(fileName)
-            if (fInfo.exists()) and (fInfo.isExecutable()):
+            if self.isRunnableFile(fileName):
                 self.initSetRun = fileName
                 result = True
                 setRun = self.findChild(QLineEdit, "lnSetRun")
