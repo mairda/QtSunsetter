@@ -21,14 +21,13 @@
 
 import sys
 import os
-import re
 import subprocess
 
 from PySide2.QtWidgets import QApplication, QWidget, QPushButton, QDialog
 from PySide2.QtWidgets import QLineEdit, QLabel, QComboBox, QCheckBox
 from PySide2.QtWidgets import QSpinBox, QMessageBox, QFileDialog
 from PySide2.QtCore import QFile, QPoint, QObject, QTimer, SIGNAL, SLOT
-from PySide2.QtCore import QDir, QIODevice, QTextStream, QFileInfo
+from PySide2.QtCore import QDir, QFileInfo
 from PySide2.QtGui import QColor, QPalette, QBrush
 from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
