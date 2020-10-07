@@ -35,10 +35,10 @@ from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsDialog
 # from QtSsLocation import Ui_QtSsDialog
 from QtSsTODMath import getTimeNowWithCorrection, getSunriseTime, getSunsetTime
-from QtSsTODMath import itsDaytime, itsNighttime, getTomorrowSunriseTime
+from QtSsTODMath import itsDaytime, itsNighttime
 from QtSsTODMath import getCorrectForSysTZ, setCorrectForSysTZ
 from QtSsTODMath import getTimeNowFractionOfLightPeriod
-from QtSsTODMath import getTimeToNextHorizonCrossing, itsAfterSunsetToday
+from QtSsTODMath import getTimeToNextHorizonCrossing
 # from QtSsTODMath import getTimeNowDeltaWithCorrection
 # from QtSsTODMath import getSunriseDelta
 # from QtSsTODMath import daytimeFractionOfDay
@@ -46,6 +46,7 @@ from QtSsTODMath import getTimeToNextHorizonCrossing, itsAfterSunsetToday
 # from QtSsTODMath import getTimeNowDurationOfLightPeriod
 from QtSsMath import setLatitude, setLongitude, getLatitude, setSystemTime
 from QtSsMath import getLongitude, getHomeTZ, setHomeTZ, setLocalTZ
+from QtSsConfig import SunsetterConfig
 from QtSsDebug import debugMessage, disableDebug, enableDebug, debugIsEnabled
 
 
@@ -262,7 +263,7 @@ class QtSunsetter(QWidget):
                 self.shownSRise = sRise
 
     def showSunsetTime(self):
-        # Get the sunset time and show it if it is not what we last showed
+        # Get today's sunset time and show it if it is not what we last showed
         sSet = getSunsetTime()
         if sSet != self.shownSSet:
             labSunset = self.findChild(QLabel, "sunset")
@@ -424,7 +425,6 @@ class QtSunsetter(QWidget):
                 self.nextCrossing = "sunrise"
 
         # Display it with a relevant prompt
-        # DWH
         labrTimePrompt = self.findChild(QLabel, "rTimePrompt")
         labrTimeValue = self.findChild(QLabel, "rTimeValue")
         if (labrTimePrompt is not None) and (labrTimeValue is not None):
@@ -632,407 +632,51 @@ class QtSunsetter(QWidget):
             if homePath[-1] != '/':
                 homePath += '/'
 
-        debugMessage("HOMEDIR: {}".format(homePath))
-        return homePath
-
-    def getConfigFilename(self):
-        cfgFilename = self.getConfigFileDir()
-        if cfgFilename is not None:
-            cfgFilename += '.QtSunsetter'
-        else:
-            cfgFilename = None
-
-        debugMessage("CONFIG FILE: {}".format(cfgFilename))
-        return cfgFilename
-
-    def getConfigTempFilename(self):
-        tmpFilename = self.getConfigFileDir()
-        if tmpFilename is not None:
-            tmpFilename += '.QtSunsetter.tmp'
-        else:
-            tmpFilename = None
-
-        debugMessage("TEMP FILE: {}".format(tmpFilename))
-        return tmpFilename
-
-    def latlonConfig(self, cfgLine):
-        isLat = True
-        nVal = None
-        m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is None:
-            isLat = False
-            m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                          cfgLine,
-                          flags=re.IGNORECASE)
-        if m is not None:
-            val = m.group(1)
-            try:
-                nVal = float(val)
-            except Exception:
-                nVal = 0.0
-
-            if isLat is True:
-                setLatitude(nVal)
-                debugMessage("lat = {} => {}".format(val, nVal))
-            else:
-                setLongitude(nVal)
-                debugMessage("lon = {} => {}".format(val, nVal))
-
-        return (nVal is not None)
-
-    def timezoneConfig(self, cfgLine):
-        nTZ = None
-        m = re.search('^timezone=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            tz = m.group(1)
-            try:
-                nTZ = float(tz)
-            except Exception:
-                nTZ = 0.0
-            setHomeTZ(nTZ * 3600.0)
-            debugMessage("TZ = {} => {}".format(tz, nTZ))
-
-        return (nTZ is not None)
-
-    def correctTimezoneConfig(self, cfgLine):
-        result = False
-        m = re.search('^CorrectForSystemTimezone$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            setCorrectForSysTZ(True)
-            result = True
-            debugMessage("CorrectForSystemTimezone ENABLED")
-
-        return result
-
-    def sunriseRunConfig(self, cfgLine):
-        result = False
-        m = re.search('^sunriserun=(.*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            fileName = m.group(1)
-            if self.isRunnableFile(fileName):
-                self.initRiseRun = fileName
-                result = True
-                riseRun = self.findChild(QLineEdit, "lnRiseRun")
-                if riseRun is not None:
-                    riseRun.setText("{}".format(fileName))
-            debugMessage("sunrise program = {}".format(fileName))
-
-        return result
-
-    def sunsetRunConfig(self, cfgLine):
-        result = False
-        m = re.search('^sunsetrun=(.*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            fileName = m.group(1)
-            if self.isRunnableFile(fileName):
-                self.initSetRun = fileName
-                result = True
-                setRun = self.findChild(QLineEdit, "lnSetRun")
-                if setRun is not None:
-                    setRun.setText("{}".format(fileName))
-            debugMessage("sunset program = {}".format(fileName))
-
-        return result
-
-    def processConfigLine(self, theLine):
-        # Comments begin with a # character, remove them
-        m = re.search('^(.+)\\#.+$', theLine)
-        if m is not None:
-            theLine = m.group(1)
-
-        # If there is nothing left we are finished with the line
-        if (theLine == "") or (theLine is None):
-            return
-
-        # If we have a latitude (signed decimal)
-        if self.latlonConfig(theLine) is True:
-            return
-
-        # If we have a longitude (signed decimal)
-        if self.latlonConfig(theLine) is True:
-            return
-
-        # If we have a timezone (signed decimal clock offset in hours)
-        if self.timezoneConfig(theLine) is True:
-            return
-
-        # If we are to correct system time from system timezone to
-        # configured timezone
-        if self.correctTimezoneConfig(theLine) is True:
-            return
-
-        # If we have a program to run on sunrise
-        if self.sunriseRunConfig(theLine) is True:
-            return
-
-        # If we have a program to run on sunset
-        if self.sunsetRunConfig(theLine) is True:
-            return
-
-        debugMessage("Unprocessed config line: {}".format(theLine))
-
     def loadConfig(self):
-        self.initRiseRun = None
-        self.initSetRun = None
-        cfgFilename = self.getConfigFilename()
-        cfgFile = QFile(cfgFilename)
-        if cfgFile is not None:
-            if cfgFile.exists():
-                debugMessage("Config file found")
-
-                if cfgFile.open(QIODevice.ReadOnly | QIODevice.Text):
-                    inStream = QTextStream(cfgFile)
-                    if inStream is not None:
-                        # Assume correct for system timezone is OFF
-                        setCorrectForSysTZ(False)
-                        while not inStream.atEnd():
-                            inStream.skipWhiteSpace()
-                            line = inStream.readLine()
-                            self.processConfigLine(line)
-            else:
-                debugMessage("Config file NOT found")
-                setCorrectForSysTZ(False)
-
-    def saveConfigLine(self, outStream, outLine, theGap, theComment):
-        if (outStream is None) or (outLine is None):
-            return
-
-        # If there was a comment
-        if theComment is not None:
-            if theComment != "":
-                # Append any gap spaces
-                if theGap is not None:
-                    if theGap != "":
-                        outLine += theGap
-
-                # Append the comment
-                outLine += theComment
-
-        # Save the line
-        outLine += "\n"
-        outStream << outLine
-
-    def latLonProcessOutput(self, cfgLine):
-        outLine = None
-        isLat = True
-        m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is None:
-            isLat = False
-            m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                          cfgLine,
-                          flags=re.IGNORECASE)
-        if m is not None:
-            if isLat:
-                # If we haven't already saved latitude
-                if not self.savedLat:
-                    # Re-build using the current latitude
-                    outLine = "latitude={}".format(getLatitude())
-                    self.savedLat = True
-                else:
-                    # Saved it already, make the line a comment
-                    outLine = "# "
-            else:
-                # If we haven't already saved longitude
-                if not self.savedLon:
-                    # Re-build using the current longitude
-                    outLine = "longitude={}".format(getLongitude())
-                    self.savedLon = True
-                else:
-                    # Saved it already, make the line a comment
-                    outLine = "#"
-
-        return outLine
-
-    def timezoneProcessOutput(self, cfgLine):
-        outLine = None
-        m = re.search('^timezone=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            # If we haven't already saved it
-            if not self.savedTZ:
-                # Re-build using the current timezone
-                outLine = "timezone={}".format(getHomeTZ())
-                self.savedTZ = True
-            else:
-                # Saved it already
-                outLine = "#"
-
-        return outLine
-
-    def riseRunProcessOutput(self, cfgLine):
-        outLine = None
-        m = re.search('^sunriserun=(.*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            riseRun = self.findChild(QLineEdit, "lnRiseRun")
-            if riseRun is not None:
-                # If we haven't already saved it
-                if not self.savedRiseRun:
-                    # Re-build using the current value
-                    outLine = "sunriserun={}".format(riseRun.text())
-                    self.savedRiseRun = True
-                else:
-                    # Saved it already
-                    outLine = "#"
-
-        return outLine
-
-    def setRunProcessOutput(self, cfgLine):
-        outLine = None
-        m = re.search('^sunsetrun=(.+)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            setRun = self.findChild(QLineEdit, "lnSetRun")
-            if setRun is not None:
-                # If we haven't already saved it
-                if not self.savedSetRun:
-                    # Re-build using the current value
-                    outLine = "sunsetrun={}".format(setRun.text())
-                    self.savedSetRun = True
-                else:
-                    # Saved it already
-                    outLine = "#"
-
-        return outLine
-
-    def processOutputConfigLine(self, outStream, theLine):
-        if (outStream is None) or (theLine is None):
-            return
-
-        outLine = theLine
-
-        # Comments begin with a # character, split them into
-        # setting, gap to comment and comment
-        m = re.search('^(.+)(\\s*)(\\#.*)$', theLine)
-        if m is not None:
-            theLine = m.group(1)
-            theGap = m.group(2)
-            theComment = m.group(3)
-        else:
-            theGap = None
-            theComment = None
-
-        # If we are to correct system time based on system timezone and
-        # configured timezone (present is ON, not-present is OFF)
-        m = re.search('^CorrectForSystemTimezone$',
-                      theLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            if getCorrectForSysTZ() is False:
-                debugMessage("CorrectForSystemTimezone DISABLED")
-                # If there's no gap and no comment then don't write an empty
-                # line as a replacement
-                if ((theGap is None) or (theGap == "")) and\
-                        ((theComment is None) or (theComment == "")):
-                    outLine = None
-                else:
-                    outLine = ""
-
-            self.savedCorrectForSysTZ = True
-        else:
-            # If we have a latitude or longitude (signed decimal)
-            tmpLine = self.latLonProcessOutput(theLine)
-            if tmpLine is None:
-                # If we have a timezone (signed decimal clock offset in hours)
-                tmpLine = self.timezoneProcessOutputLine(theLine)
-                if tmpLine is None:
-                    # If we have a program to run at sunrise (string)
-                    tmpLine = self.riseRunProcessOutputLine(theLine)
-                    if tmpLine is None:
-                        # If we have a program to run at sunset (string)
-                        tmpLine = self.setRunProcessOutputLine(theLine)
-
-            # If we get here with tmpLine not None we can treat it generically
-            # for all cases
-            if tmpLine is not None:
-                # not saved already, tmpLine is the output line
-                if tmpLine != "#":
-                    outLine = tmpLine
-                else:
-                    # Saved it already, make the line a comment
-                    outLine = "# " + outLine
-                    theGap = None
-                    theComment = None
-
-        self.saveConfigLine(outStream, outLine, theGap, theComment)
+        config = SunsetterConfig()
+        if config.loadConfig():
+            nVal = config.getLatitude()
+            if nVal is not None:
+                setLatitude(nVal)
+            nVal = config.getLongitude()
+            if nVal is not None:
+                setLongitude(nVal)
+            nVal = config.getHomeTZ()
+            if nVal is not None:
+                setHomeTZ(nVal * 3600.0)
+            bVal = config.getCorrectForSysTZ()
+            if bVal is not None:
+                setCorrectForSysTZ(bVal)
+            self.initRiseRun = config.getSunriseRun()
+            if self.initRiseRun is not None:
+                if self.isRunnableFile(self.initRiseRun):
+                    riseRun = self.findChild(QLineEdit, "lnRiseRun")
+                    if riseRun is not None:
+                        riseRun.setText("{}".format(self.initRiseRun))
+                # debugMessage("sunrise program = {}".format(self.initRiseRun))
+            self.initSetRun = config.getSunsetRun()
+            if self.initSetRun is not None:
+                if self.isRunnableFile(self.initSetRun):
+                    setRun = self.findChild(QLineEdit, "lnSetRun")
+                    if setRun is not None:
+                        setRun.setText("{}".format(self.initSetRun))
+                # debugMessage("sunset program = {}".format(self.initSetRun))
 
     # Save the config but only replace supported configuration items while
     # keeping all other content
     def saveConfig(self):
-        # We haven't yet saved each property
-        self.savedLat = False
-        self.savedLon = False
-        self.savedTZ = False
-        self.savedCorrectForSysTZ = False
-        self.savedRiseRun = False
-        self.savedSetRun = False
-
-        # Get the config and temp filenames
-        cfgFilename = self.getConfigFilename()
-        tmpFilename = self.getConfigTempFilename()
-
-        # Use any original config file and a temp file to write
-        cfgFile = QFile(cfgFilename)
-        tmpFile = QFile(tmpFilename)
-        if (cfgFile is not None) and (tmpFile is not None):
-            inStream = None
-            if cfgFile.exists():
-                debugMessage("Config file found")
-
-                if cfgFile.open(QIODevice.ReadOnly | QIODevice.Text):
-                    inStream = QTextStream(cfgFile)
-
-            # Open the output
-            if tmpFile.open(QFile.WriteOnly | QFile.Truncate | QIODevice.Text):
-                outStream = QTextStream(tmpFile)
-            else:
-                outStream = None
-
-            if outStream is not None:
-                # If we have an input file, read through it re-writing it to
-                # the temp file and change any known settings to current values
-                if inStream is not None:
-                    while not inStream.atEnd():
-                        line = inStream.readLine()
-                        self.processOutputConfigLine(outStream, line)
-
-                    # Remove the original config file
-                    cfgFile.remove()
-                    cfgFile = None
-
-                # Fixup anything we didn't save in the temp file
-                if not self.savedLat:
-                    self.processOutputConfigLine(outStream, "latitude=0")
-                if not self.savedLon:
-                    self.processOutputConfigLine(outStream, "longitude=0")
-                if not self.savedTZ:
-                    self.processOutputConfigLine(outStream, "timezone=0")
-                if (not self.savedCorrectForSysTZ) and\
-                        (getCorrectForSysTZ() is True):
-                    self.processOutputConfigLine(outStream,
-                                                 "CorrectForSystemTimezone")
-                if not self.savedRiseRun:
-                    self.processOutputConfigLine(outStream, "sunriserun=abc")
-                if not self.savedSetRun:
-                    self.processOutputConfigLine(outStream, "sunsetrun=abc")
-
-                # Rename the temp file as the config file
-                tmpFile.rename(cfgFilename)
+        config = SunsetterConfig()
+        config.setLatitude(getLatitude())
+        config.setLongitude(getLongitude())
+        config.setCorrectForSysTZ(getCorrectForSysTZ())
+        config.setHomeTZ(getHomeTZ())
+        riseRun = self.findChild(QLineEdit, "lnRiseRun")
+        if riseRun is not None:
+            config.setSunriseRun(riseRun.text())
+        setRun = self.findChild(QLineEdit, "lnSetRun")
+        if setRun is not None:
+            config.setSunsetRun(setRun.text())
+        config.saveConfig()
 
 
 disableDebug()
