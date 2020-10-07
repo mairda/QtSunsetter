@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 #
-# Manage the switching of QtSunsetter between day and night targets based on the
-# sunrise/sunset times without user intervention. This is based on spreadsheet
-# based exaples published by the NOAA organization at the following location:
-# https://www.esrl.noaa.gov/gmd/grad/solcalc/calcdetails.html
+# Manage the switching of QtSunsetter between day and night targets based on
+# the sunrise/sunset times without user intervention. This is based on
+# spreadsheet based exaples published by the NOAA organization at the following
+# location: https://www.esrl.noaa.gov/gmd/grad/solcalc/calcdetails.html
 #
 # Version: 1.0
 # Copyright (C) 2020/09/21 David A. Mair
@@ -23,322 +23,334 @@
 # along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import sys
-import subprocess
 import time
 import datetime
 from math import sin, cos, tan, asin, acos, atan2, degrees, radians
 
 
 def refDays(aDate):
-	baseDate = datetime.date(1900, 1, 14)
-	deltaDate = abs(aDate - baseDate)
-	#print("Days from base: {}".format(deltaDate.days))
-	return deltaDate.days
+    baseDate = datetime.date(1900, 1, 14)
+    deltaDate = abs(aDate - baseDate)
+    # print("Days from base: {}".format(deltaDate.days))
+    return deltaDate.days
 # refDays
 
 
 def fracOfLocalDay(aTime):
-	fDay = aTime.hour * 1.0
-	fDay += aTime.minute * 60.0
-	fDay += aTime.second * 60.0 * 60.0
-	fDay /= 24.0
+    fDay = aTime.hour * 1.0
+    fDay += aTime.minute * 60.0
+    fDay += aTime.second * 60.0 * 60.0
+    fDay /= 24.0
 
-	return fDay
+    return fDay
 # fracOfLocalDay
 
 
 def timeFromDayFraction(fracOfDay):
-	if (fracOfDay < 0.0) or (fracOfDay >= 1.0):
-		# Bad fraction of the day, use midnight
-		print("Bad fraction of day: {}, using midnight".format(fracOfDay))
-		fracOfDay = 0.0
-	
-	# Convert to second of the day
-	fracOfDay *= 24 * 3600
-	
-	# Get the h:m:s
-	h = int(fracOfDay / 3600)
-	m = int((fracOfDay - (3600 * h)) / 60)
-	s = int(fracOfDay) % 60
-	t = datetime.time(h, m, s)
-	
-	return t
+    if (fracOfDay < 0.0) or (fracOfDay >= 1.0):
+        # Bad fraction of the day, use midnight
+        print("Bad fraction of day: {}, using midnight".format(fracOfDay))
+        fracOfDay = 0.0
+
+    # Convert to second of the day
+    fracOfDay *= 24 * 3600
+
+    # Get the h:m:s
+    h = int(fracOfDay / 3600)
+    m = int((fracOfDay - (3600 * h)) / 60)
+    s = int(fracOfDay) % 60
+    t = datetime.time(h, m, s)
+
+    return t
 # timeFromDayFraction
 
 
-def JulianDay(aDate, aTime = datetime.time(0, 0, 0)):
-	global HomeTZ
-	
-	jDay = refDays(aDate) + 2415018.5 + fracOfLocalDay(aTime) - HomeTZ / 24.0
-	# =D2+2415018.5+E2-$B$5/24
-	
-	return jDay
+def JulianDay(aDate, aTime=datetime.time(0, 0, 0)):
+    global HomeTZ
+
+    jDay = refDays(aDate) + 2415018.5 + fracOfLocalDay(aTime) - HomeTZ / 24.0
+    # =D2+2415018.5+E2-$B$5/24
+
+    return jDay
 # JulianDay
 
 
-def JulianCentury(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianDay(aDate, aTime)
-	jCent -= 2451545
-	jCent /= 36525
-	# =(F2-2451545)/36525
-	
-	return jCent
+def JulianCentury(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianDay(aDate, aTime)
+    jCent -= 2451545
+    jCent /= 36525
+    # =(F2-2451545)/36525
+
+    return jCent
 # JulianCentury
 
 
-def SunGeomMeanLong(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianCentury(aDate, aTime)
-	mLong = (280.46646 + jCent * (36000.76983 + jCent * 0.0003032)) % 360
-	# =MOD(280.46646+G2*(36000.76983+G2*0.0003032),360)
-	
-	return mLong
+def SunGeomMeanLong(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianCentury(aDate, aTime)
+    mLong = (280.46646 + jCent * (36000.76983 + jCent * 0.0003032)) % 360
+    # =MOD(280.46646+G2*(36000.76983+G2*0.0003032),360)
+
+    return mLong
 # SunGeomMeanLong
 
 
-def SunGeomMeanAnom(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianCentury(aDate, aTime)
-	mAnom = 357.52911 + jCent * (35999.05029 - 0.0001537 * jCent)
-	# =357.52911+G2*(35999.05029-0.0001537*G2)
-	
-	return mAnom
+def SunGeomMeanAnom(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianCentury(aDate, aTime)
+    mAnom = 357.52911 + jCent * (35999.05029 - 0.0001537 * jCent)
+    # =357.52911+G2*(35999.05029-0.0001537*G2)
+
+    return mAnom
 # SunGeomMeanAnom
 
 
-def SunEqOfCtr(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianCentury(aDate, aTime)
-	mAnom = SunGeomMeanAnom(aDate, aTime)
-	sEqC = sin(radians(mAnom)) * (1.914602 - jCent * (0.004817 + 0.000014 * jCent)) + sin(radians(2 * mAnom)) * (0.019993 - 0.000101 * jCent) + sin(radians(3 * mAnom)) * 0.000289
-	# =SIN(RADIANS(J2))*(1.914602-G2*(0.004817+0.000014*G2))+SIN(RADIANS(2*J2))*(0.019993-0.000101*G2)+SIN(RADIANS(3*J2))*0.000289
-	
-	return sEqC
+def SunEqOfCtr(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianCentury(aDate, aTime)
+    mAnom = SunGeomMeanAnom(aDate, aTime)
+    sEqC = sin(radians(mAnom))
+    sEqC *= (1.914602 - jCent * (0.004817 + 0.000014 * jCent))
+    sEqC += sin(radians(2 * mAnom)) * (0.019993 - 0.000101 * jCent)
+    sEqC += sin(radians(3 * mAnom)) * 0.000289
+    # =SIN(RADIANS(J2))*(1.914602-G2*(0.004817+0.000014*G2))+SIN(RADIANS(2*J2))*(0.019993-0.000101*G2)+SIN(RADIANS(3*J2))*0.000289
+
+    return sEqC
 # SunEqOfCtr
 
 
-def SunTrueLong(aDate, aTime = datetime.time(0, 0, 0)):
-	tLong = SunGeomMeanLong(aDate, aTime) + SunEqOfCtr(aDate, aTime)
-	# =I2+L2
-	
-	return tLong
+def SunTrueLong(aDate, aTime=datetime.time(0, 0, 0)):
+    tLong = SunGeomMeanLong(aDate, aTime) + SunEqOfCtr(aDate, aTime)
+    # =I2+L2
+
+    return tLong
 # SunTrueLong
 
 
-def SunTrueAnom(aDate, aTime = datetime.time(0, 0, 0)):
-	tAnom = SunGeomMeanAnom(aDate, aTime) + SunEqOfCtr(aDate, aTime)
-	# =J2+L2
+def SunTrueAnom(aDate, aTime=datetime.time(0, 0, 0)):
+    tAnom = SunGeomMeanAnom(aDate, aTime) + SunEqOfCtr(aDate, aTime)
+    # =J2+L2
 
-	return tAnom
+    return tAnom
 # SunTrueAnom
 
 
-def SunRadVector(aDate, aTime = datetime.time(0, 0, 0)):
-	oEccent = EarthOrbitEccent(aDate, aTime)
-	tAnom = SunTrueAnom(aDate, aTime)
-	rVec = (1.000001018 * (1 - oEccent * oEccent)) / (1 + oEccent * cos(radians(tAnom)))
-	# =(1.000001018*(1-K2*K2))/(1+K2*COS(RADIANS(N2)))
-	
-	return rVec
+def SunRadVector(aDate, aTime=datetime.time(0, 0, 0)):
+    oEccent = EarthOrbitEccent(aDate, aTime)
+    tAnom = SunTrueAnom(aDate, aTime)
+    rVec = (1.000001018 * (1 - oEccent * oEccent))
+    rVec /= (1 + oEccent * cos(radians(tAnom)))
+    # =(1.000001018*(1-K2*K2))/(1+K2*COS(RADIANS(N2)))
+
+    return rVec
 # SunRadVector
 
 
-def SunAppLong(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianCentury(aDate, aTime)
-	tLong = SunTrueLong(aDate, aTime)
-	aLong = tLong - 0.00569 - 0.00478 * sin(radians(125.04 - 1934.136 * jCent))
-	# =M2-0.00569-0.00478*SIN(RADIANS(125.04-1934.136*G2))
-	
-	return aLong
+def SunAppLong(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianCentury(aDate, aTime)
+    tLong = SunTrueLong(aDate, aTime)
+    aLong = tLong - 0.00569 - 0.00478 * sin(radians(125.04 - 1934.136 * jCent))
+    # =M2-0.00569-0.00478*SIN(RADIANS(125.04-1934.136*G2))
+
+    return aLong
 # SunAppLong
 
 
-def SunRightAscension(aDate, aTime = datetime.time(0, 0, 0)):
-	aLong = SunAppLong(aDate, aTime)
-	oCorr = ObliqCorr(aDate, aTime)
-	#aLong = 84.61
-	#oCorr = 23.44
-	#rAsc = degrees(atan2(cos(radians(aLong)), cos(radians(oCorr)) * sin(radians(aLong))))
-	rAsc = degrees(atan2(cos(radians(aLong)), cos(radians(oCorr)) * sin(radians(aLong))))
-	# =DEGREES(ATAN2(COS(RADIANS(P2)),COS(RADIANS(R2))*SIN(RADIANS(P2))))
-	
-	return rAsc
+def SunRightAscension(aDate, aTime=datetime.time(0, 0, 0)):
+    aLong = SunAppLong(aDate, aTime)
+    oCorr = ObliqCorr(aDate, aTime)
+    # aLong = 84.61
+    # oCorr = 23.44
+    # rAsc = degrees(atan2(cos(radians(aLong)),
+    #                cos(radians(oCorr)) * sin(radians(aLong))))
+    rAsc = degrees(atan2(cos(radians(aLong)),
+                         cos(radians(oCorr)) * sin(radians(aLong))))
+    # =DEGREES(ATAN2(COS(RADIANS(P2)),COS(RADIANS(R2))*SIN(RADIANS(P2))))
+
+    return rAsc
 # SunRightAscension
 
 
-def SunDeclination(aDate, aTime = datetime.time(0, 0, 0)):
-	aLong = SunAppLong(aDate, aTime)
-	oCorr = ObliqCorr(aDate, aTime)
-	sDec = degrees(asin(sin(radians(oCorr)) * sin(radians(aLong))))
-	# =DEGREES(ASIN(SIN(RADIANS(R2))*SIN(RADIANS(P2))))
+def SunDeclination(aDate, aTime=datetime.time(0, 0, 0)):
+    aLong = SunAppLong(aDate, aTime)
+    oCorr = ObliqCorr(aDate, aTime)
+    sDec = degrees(asin(sin(radians(oCorr)) * sin(radians(aLong))))
+    # =DEGREES(ASIN(SIN(RADIANS(R2))*SIN(RADIANS(P2))))
 
-	return sDec
+    return sDec
 # SunDeclination
 
 
-def SunVariance(aDate, aTime = datetime.time(0, 0, 0)):
-	oCorr = ObliqCorr(aDate, aTime)
-	sVar = tan(radians(oCorr / 2)) * tan(radians(oCorr / 2))
-	# =TAN(RADIANS(R2/2))*TAN(RADIANS(R2/2))
-	
-	return sVar
+def SunVariance(aDate, aTime=datetime.time(0, 0, 0)):
+    oCorr = ObliqCorr(aDate, aTime)
+    sVar = tan(radians(oCorr / 2)) * tan(radians(oCorr / 2))
+    # =TAN(RADIANS(R2/2))*TAN(RADIANS(R2/2))
+
+    return sVar
 # SunVariance
 
 
-def HASunrise(aDate, aTime = datetime.time(0, 0, 0)):
-	global HomeLat
-	
-	sDec = SunDeclination(aDate, aTime)
-	haRise = degrees(acos(cos(radians(90.833)) / (cos(radians(HomeLat)) * cos(radians(sDec))) - tan(radians(HomeLat)) * tan(radians(sDec))))
-	# =DEGREES(ACOS(COS(RADIANS(90.833))/(COS(RADIANS($B$3))*COS(RADIANS(T2)))-TAN(RADIANS($B$3))*TAN(RADIANS(T2))))
-	
-	return haRise
+def HASunrise(aDate, aTime=datetime.time(0, 0, 0)):
+    global HomeLat
+
+    sDec = SunDeclination(aDate, aTime)
+    haRiseIn = acos(cos(radians(90.833)) / (cos(radians(HomeLat)) *
+                    cos(radians(sDec))) - tan(radians(HomeLat)) *
+                    tan(radians(sDec)))
+    haRise = degrees(haRiseIn)
+    # =DEGREES(ACOS(COS(RADIANS(90.833))/(COS(RADIANS($B$3))*COS(RADIANS(T2)))-TAN(RADIANS($B$3))*TAN(RADIANS(T2))))
+
+    return haRise
 # HASunrise
 
 
-def MeanObliqEcliptic(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianCentury(aDate, aTime)
-	mObEcclip = 23 + (26 + ((21.448 - jCent * (46.815 + jCent * (0.00059 - jCent * 0.001813)))) / 60) / 60
-	# =23+(26+((21.448-G2*(46.815+G2*(0.00059-G2*0.001813))))/60)/60
-	
-	return mObEcclip
+def MeanObliqEcliptic(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianCentury(aDate, aTime)
+    mObEcclip = 23 + (26 + ((21.448 - jCent * (46.815 + jCent * (0.00059 -
+                            jCent * 0.001813)))) / 60) / 60
+    # =23+(26+((21.448-G2*(46.815+G2*(0.00059-G2*0.001813))))/60)/60
+
+    return mObEcclip
 # MeanObliqEcliptic
 
 
-def ObliqCorr(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianCentury(aDate, aTime)
-	mObEcclip = MeanObliqEcliptic(aDate, aTime)
-	oCorr = mObEcclip + 0.00256 * cos(radians(125.04 - 1934.136 * jCent))
-	# =Q2+0.00256*COS(RADIANS(125.04-1934.136*G2))
-	
-	return oCorr
+def ObliqCorr(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianCentury(aDate, aTime)
+    mObEcclip = MeanObliqEcliptic(aDate, aTime)
+    oCorr = mObEcclip + 0.00256 * cos(radians(125.04 - 1934.136 * jCent))
+    # =Q2+0.00256*COS(RADIANS(125.04-1934.136*G2))
+
+    return oCorr
 # ObliqCorr
 
 
-def EarthOrbitEccent(aDate, aTime = datetime.time(0, 0, 0)):
-	jCent = JulianCentury(aDate, aTime)
-	oEccent = 0.016708634 - jCent * (0.000042037 + 0.0000001267*jCent)
-	# =0.016708634-G2*(0.000042037+0.0000001267*G2)
-	
-	return oEccent
+def EarthOrbitEccent(aDate, aTime=datetime.time(0, 0, 0)):
+    jCent = JulianCentury(aDate, aTime)
+    oEccent = 0.016708634 - jCent * (0.000042037 + 0.0000001267*jCent)
+    # =0.016708634-G2*(0.000042037+0.0000001267*G2)
+
+    return oEccent
 # EarthOrbitEccent
 
 
 # Eq of Time (minutes)
-def eqOfTime(aDate, aTime = datetime.time(0, 0, 0)):
-	mLong = SunGeomMeanLong(aDate, aTime)
-	mAnom = SunGeomMeanAnom(aDate, aTime)
-	oEccent = EarthOrbitEccent(aDate, aTime)
-	sVary = SunVariance(aDate, aTime)
-	# eTime = -1
-	eTime = 4 * degrees(sVary * sin(2 * radians(mLong)) - 2 * oEccent * sin(radians(mAnom)) + 4 * oEccent * sVary * sin(radians(mAnom)) * cos(2 * radians(mLong)) - 0.5 * sVary * sVary * sin(4 * radians(mLong)) - 1.25 * oEccent * oEccent * sin(2 * radians(mAnom)))
-	# =4*DEGREES(U2*SIN(2*RADIANS(I2))-2*K2*SIN(RADIANS(J2))+4*K2*U2*SIN(RADIANS(J2))*COS(2*RADIANS(I2))-0.5*U2*U2*SIN(4*RADIANS(I2))-1.25*K2*K2*SIN(2*RADIANS(J2)))
-	
-	return eTime
+def eqOfTime(aDate, aTime=datetime.time(0, 0, 0)):
+    mLong = SunGeomMeanLong(aDate, aTime)
+    mAnom = SunGeomMeanAnom(aDate, aTime)
+    oEccent = EarthOrbitEccent(aDate, aTime)
+    sVary = SunVariance(aDate, aTime)
+    # eTime = -1
+    eTime = 4 * degrees(sVary * sin(2 * radians(mLong)) - 2 * oEccent *
+                        sin(radians(mAnom)) + 4 * oEccent * sVary *
+                        sin(radians(mAnom)) * cos(2 * radians(mLong)) - 0.5 *
+                        sVary * sVary * sin(4 * radians(mLong)) - 1.25 *
+                        oEccent * oEccent * sin(2 * radians(mAnom)))
+    # =4*DEGREES(U2*SIN(2*RADIANS(I2))-2*K2*SIN(RADIANS(J2))+4*K2*U2*SIN(RADIANS(J2))*COS(2*RADIANS(I2))-0.5*U2*U2*SIN(4*RADIANS(I2))-1.25*K2*K2*SIN(2*RADIANS(J2)))
+
+    return eTime
 # egOfTime
 
 
-def SolarNoon(aDate, aTime = datetime.time(0, 0, 0)):
-	global HomeLat, HomeLong, HomeTZ
-	
-	# rDays = refDays(aDate)
-	eTime = eqOfTime(aDate, aTime)
-	sNoon = (720 - 4 * HomeLong - eTime + HomeTZ * 60) / 1440
-	# =(720-4*$B$4-V2+$B$5*60)/1440
-	
-	return sNoon
+def SolarNoon(aDate, aTime=datetime.time(0, 0, 0)):
+    global HomeLat, HomeLong, HomeTZ
+
+    # rDays = refDays(aDate)
+    eTime = eqOfTime(aDate, aTime)
+    sNoon = (720 - 4 * HomeLong - eTime + HomeTZ * 60) / 1440
+    # =(720-4*$B$4-V2+$B$5*60)/1440
+
+    return sNoon
 # SolarNoon
 
 
-def LocalSunrise(aDate, aTime = datetime.time(0, 0, 0)):
-	hRise = abs(HASunrise(aDate, aTime))
-	sNoon = abs(SolarNoon(aDate, aTime))
-	lRise = sNoon - hRise * 4 / 1440
-	# =X2-W2*4/1440
-	
-	return lRise
+def LocalSunrise(aDate, aTime=datetime.time(0, 0, 0)):
+    hRise = abs(HASunrise(aDate, aTime))
+    sNoon = abs(SolarNoon(aDate, aTime))
+    lRise = sNoon - hRise * 4 / 1440
+    # =X2-W2*4/1440
+
+    return lRise
 # LocalSunrise
 
 
-def LocalSunset(aDate, aTime = datetime.time(0, 0, 0)):
-	hRise = abs(HASunrise(aDate, aTime))
-	sNoon = abs(SolarNoon(aDate, aTime))
-	lSet = sNoon + hRise * 4 / 1440
-	# =X2+W2*4/1440
-	
-	return lSet
+def LocalSunset(aDate, aTime=datetime.time(0, 0, 0)):
+    hRise = abs(HASunrise(aDate, aTime))
+    sNoon = abs(SolarNoon(aDate, aTime))
+    lSet = sNoon + hRise * 4 / 1440
+    # =X2+W2*4/1440
+
+    return lSet
 # LocalSunset
 
 
-def SunlightDuration(aDate, aTime = datetime.time(0, 0, 0)):
-	sDur = 8 * HASunrise(aDate, aTime)
-	# =8*W2
-	
-	return sDur
+def SunlightDuration(aDate, aTime=datetime.time(0, 0, 0)):
+    sDur = 8 * HASunrise(aDate, aTime)
+    # =8*W2
+
+    return sDur
 # SunlightDuration
 
 
 def testFunction(aTime):
-	global doDBug, Today
-	if doDBug == True:
-		x = JulianDay(Today, aTime)
-		print("Test result: {}".format(x))
-		x = JulianCentury(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunGeomMeanLong(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunGeomMeanAnom(Today, aTime)
-		print("Test result: {}".format(x))
-		x = EarthOrbitEccent(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunEqOfCtr(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunTrueLong(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunTrueAnom(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunRadVector(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunAppLong(Today, aTime)
-		print("Test result: {}".format(x))
-		x = MeanObliqEcliptic(Today, aTime)
-		print("Test result: {}".format(x))
-		x = ObliqCorr(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunRightAscension(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunDeclination(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SunVariance(Today, aTime)
-		print("Test result: {}".format(x))
-		x = eqOfTime(Today, aTime)
-		print("Test result: {}".format(x))
-		x = HASunrise(Today, aTime)
-		print("Test result: {}".format(x))
-		x = SolarNoon(Today, aTime)
-		x *= 24 * 3600
-		h = int(x / 3600)
-		m = int((x - (3600 * h)) / 60)
-		s = int(x) % 60
-		t = datetime.time(h, m, s)
-		#t = datetime.time(0, 0, 0)
-		print("Test result : {} - {}:{}:{} - {}".format(x, h, m, s, t))
-		x = abs(LocalSunrise(Today, aTime))
-		x *= 24 * 3600
-		h = int(x / 3600)
-		m = int((x - (3600 * h)) / 60)
-		s = int(x) % 60
-		t = datetime.time(h, m, s)
-		#t = datetime.time(0, 0, 0)
-		print("Test result: {} - {}:{}:{} - {}".format(x, h, m, s, t))
-		x = abs(LocalSunset(Today, aTime))
-		x *= 24 * 3600
-		h = int(x / 3600)
-		m = int((x - (3600 * h)) / 60)
-		s = int(x) % 60
-		t = datetime.time(h, m, s)
-		#t = datetime.time(0, 0, 0)
-		print("Test result: {} - {}:{}:{} - {}".format(x, h, m, s, t))
-		x = SunlightDuration(Today, aTime)
-		print("Test result: {}".format(x))
+    global doDBug, Today
+    if doDBug is True:
+        x = JulianDay(Today, aTime)
+        print("Test result: {}".format(x))
+        x = JulianCentury(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunGeomMeanLong(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunGeomMeanAnom(Today, aTime)
+        print("Test result: {}".format(x))
+        x = EarthOrbitEccent(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunEqOfCtr(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunTrueLong(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunTrueAnom(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunRadVector(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunAppLong(Today, aTime)
+        print("Test result: {}".format(x))
+        x = MeanObliqEcliptic(Today, aTime)
+        print("Test result: {}".format(x))
+        x = ObliqCorr(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunRightAscension(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunDeclination(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SunVariance(Today, aTime)
+        print("Test result: {}".format(x))
+        x = eqOfTime(Today, aTime)
+        print("Test result: {}".format(x))
+        x = HASunrise(Today, aTime)
+        print("Test result: {}".format(x))
+        x = SolarNoon(Today, aTime)
+        x *= 24 * 3600
+        h = int(x / 3600)
+        m = int((x - (3600 * h)) / 60)
+        s = int(x) % 60
+        t = datetime.time(h, m, s)
+        # t = datetime.time(0, 0, 0)
+        print("Test result : {} - {}:{}:{} - {}".format(x, h, m, s, t))
+        x = abs(LocalSunrise(Today, aTime))
+        x *= 24 * 3600
+        h = int(x / 3600)
+        m = int((x - (3600 * h)) / 60)
+        s = int(x) % 60
+        t = datetime.time(h, m, s)
+        # t = datetime.time(0, 0, 0)
+        print("Test result: {} - {}:{}:{} - {}".format(x, h, m, s, t))
+        x = abs(LocalSunset(Today, aTime))
+        x *= 24 * 3600
+        h = int(x / 3600)
+        m = int((x - (3600 * h)) / 60)
+        s = int(x) % 60
+        t = datetime.time(h, m, s)
+        # t = datetime.time(0, 0, 0)
+        print("Test result: {} - {}:{}:{} - {}".format(x, h, m, s, t))
+        x = SunlightDuration(Today, aTime)
+        print("Test result: {}".format(x))
 # testFunction
 
 

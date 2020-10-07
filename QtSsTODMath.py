@@ -201,6 +201,7 @@ def itsAfterSunsetToday():
 
     return False
 
+
 # Returns the fraction of the day that is daytime
 # Returns a float with value greater than zero and less than one
 def daytimeFractionOfDay():

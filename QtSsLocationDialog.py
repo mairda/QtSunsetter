@@ -41,7 +41,9 @@ class Ui_QtSsDialog(object):
         self.buttonBox = QtWidgets.QDialogButtonBox(QtSsDialog)
         self.buttonBox.setGeometry(QtCore.QRect(10, 182, 266, 41))
         self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
+        btns = QtWidgets.QDialogButtonBox.Cancel
+        btns |= QtWidgets.QDialogButtonBox.Ok
+        self.buttonBox.setStandardButtons(btns)
         self.buttonBox.setObjectName("buttonBox")
         self.label = QtWidgets.QLabel(QtSsDialog)
         self.label.setGeometry(QtCore.QRect(10, 10, 47, 16))
@@ -112,5 +114,8 @@ class Ui_QtSsDialog(object):
         self.latDirection.setItemText(1, _translate("QtSsDialog", "South"))
         self.longDirection.setItemText(0, _translate("QtSsDialog", "East"))
         self.longDirection.setItemText(1, _translate("QtSsDialog", "West"))
-        self.label_4.setText(_translate("QtSsDialog", "Timezone Offset (Hours):"))
-        self.chkCorrectForSysTZ.setText(_translate("QtSsDialog", "Correct for system clock timezone"))
+        self.label_4.setText(_translate("QtSsDialog",
+                                        "Timezone Offset (Hours):"))
+        txtMsg = "Correct for system clock timezone"
+        self.chkCorrectForSysTZ.setText(_translate("QtSsDialog",
+                                                   txtMsg))
