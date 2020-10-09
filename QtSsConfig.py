@@ -394,13 +394,13 @@ class SunsetterConfig:
             tmpLine = self.latLonProcessOutput(theLine)
             if tmpLine is None:
                 # If we have a timezone (signed decimal clock offset in hours)
-                tmpLine = self.timezoneProcessOutputLine(theLine)
+                tmpLine = self.timezoneProcessOutput(theLine)
                 if tmpLine is None:
                     # If we have a program to run at sunrise (string)
-                    tmpLine = self.riseRunProcessOutputLine(theLine)
+                    tmpLine = self.riseRunProcessOutput(theLine)
                     if tmpLine is None:
                         # If we have a program to run at sunset (string)
-                        tmpLine = self.setRunProcessOutputLine(theLine)
+                        tmpLine = self.setRunProcessOutput(theLine)
 
             # If we get here with tmpLine not None we can treat it generically
             # for all cases

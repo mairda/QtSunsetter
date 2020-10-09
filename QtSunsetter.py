@@ -54,6 +54,7 @@ class QtSunsetter(QWidget):
         super(QtSunsetter, self).__init__()
         self.nextCrossing = None
         setLocalTZ()
+        self.presetConfig()
         self.loadConfig()
         self.timer = QTimer(self)
         self.load_ui()
@@ -630,6 +631,12 @@ class QtSunsetter(QWidget):
         if homePath is not None:
             if homePath[-1] != '/':
                 homePath += '/'
+
+    # There are a few configuration items that have to be preset in case they
+    # aren't loadable from a config file
+    def presetConfig(self):
+        self.initRiseRun = None
+        self.initSetRun = None
 
     def loadConfig(self):
         config = SunsetterConfig()
