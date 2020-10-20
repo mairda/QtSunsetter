@@ -221,13 +221,17 @@ def daytimeDuration():
 
 
 # Get the fraction of the day that is nighttime
-# Returns a fload with value greater than zero and less than one
+# Returns a float with value greater than zero and less than one
+# NB: Returns the amount of night during this day, i.e. before today's sunrise
+# plus after today's sunset. Not a continuous time of night
 def nighttimeFractionOfDay():
     return (1.0 - daytimeFractionOfDay())
 
 
 # Returns the duration of the day (24 hours) that is nighttime
 # Returns a datetime object (h:m:s)
+# NB: Returns the amount of night during this day, i.e. before today's sunrise
+# plus after today's sunset. Not a continuous time of night
 def nighttimeDuration():
     return timeFromDayFraction(nighttimeFractionOfDay())
 

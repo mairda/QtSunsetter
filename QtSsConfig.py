@@ -185,23 +185,28 @@ class SunsetterConfig:
 
         return result
 
-    def solarCrossingRunConfig(self, cfgLine, crossing):
+    def solarCrossingRunConfig(self, cfgLine):
         global QTS_SUNRISE, QTS_SUNSET
 
         result = False
-        if crossing == QTS_SUNRISE:
-            srchRE = '^sunriserun=(.*)$'
-        elif crossing == QTS_SUNSET:
-            srchRE = '^sunsetrun=(.*)$'
-        else:
-            # Unknown crossing
-            return result
+        sunriseCfgRE = '^sunriserun=(.*)$'
+        sunsetCfgRE = '^sunsetrun=(.*)$'
 
-        m = re.search(srchRE, cfgLine, flags=re.IGNORECASE)
+        # Apply the sunrise regexp
+        m = re.search(sunriseCfgRE, cfgLine, flags=re.IGNORECASE)
+        if m is None:
+            # No match, apply the sunset regexp
+            m = re.search(sunsetCfgRE, cfgLine, flags=re.IGNORECASE)
+            crossing = QTS_SUNSET
+        else:
+            # Sunrise regexp matched
+            crossing = QTS_SUNRISE
+
+        # If we matched either regexp
         if m is not None:
             fileName = m.group(1)
             if self.isRunnableFile(fileName):
-                self.setSolarCrossingRun(fileName, cfgLine)
+                self.setSolarCrossingRun(fileName, cfgLine, crossing)
                 result = True
 
         return result
@@ -234,12 +239,8 @@ class SunsetterConfig:
         if self.correctTimezoneConfig(theLine) is True:
             return
 
-        # If we have a program to run on sunrise
-        if self.solarCrossingRunConfig(theLine, QTS_SUNRISE) is True:
-            return
-
-        # If we have a program to run on sunset
-        if self.solarCrossingRunConfig(theLine, QTS_SUNSET) is True:
+        # If we have a program to run on sunrise or sunset
+        if self.solarCrossingRunConfig(theLine) is True:
             return
 
         debugMessage("Unprocessed config line: {}".format(theLine))
@@ -339,39 +340,48 @@ class SunsetterConfig:
 
         return outLine
 
-    def solarCrossingProcessOutput(self, cfgLine, crossing):
+    def solarCrossingProcessOutput(self, cfgLine):
         global QTS_SUNRISE, QTS_SUNSET
 
         outLine = None
-        if crossing == QTS_SUNRISE:
-            srchRE = '^sunriserun=(.*)$'
-            saved = self.savedRiseRun
-            cfgName = "sunriserun"
-        elif crossing == QTS_SUNSET:
-            srchRE = '^sunsetrun=(.+)$'
-            saved = self.savedSetRun
-            cfgName = "sunsetrun"
-        else:
-            srchRE = None
+        sunriseCfgRE = '^sunriserun=(.*)$'
+        sunsetCfgRE = '^sunsetrun=(.+)$'
 
-        if srchRE is not None:
-            m = re.search(srchRE,
+        # Try the sunrise regexp against the line
+        m = re.search(sunriseCfgRE,
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is None:
+            # Sunrise failed, try the sunset regexp against the line
+            m = re.search(sunsetCfgRE,
                           cfgLine,
                           flags=re.IGNORECASE)
             if m is not None:
-                # If we haven't already saved it
-                if not saved:
-                    # Re-build using the current value
-                    runName = self.getSolarCrossingRun(crossing)
-                    outLine = "{}={}".format(cfgName, runName)
+                # Sunset matched
+                saved = self.savedSetRun
+                cfgName = "sunsetrun"
+                crossing = QTS_SUNSET
+        else:
+            # Sunrise matched
+            saved = self.savedRiseRun
+            cfgName = "sunriserun"
+            crossing = QTS_SUNRISE
 
-                    if crossing == QTS_SUNRISE:
-                        self.savedRiseRun = True
-                    elif crossing == QTS_SUNSET:
-                        self.savedSetRun = True
-                else:
-                    # Saved it already
-                    outLine = "#"
+        # If either regexp matched
+        if m is not None:
+            # ...and we haven't already saved the option
+            if saved is False:
+                # Re-build using the current value
+                runName = self.getSolarCrossingRun(crossing)
+                outLine = "{}={}".format(cfgName, runName)
+
+                if crossing == QTS_SUNRISE:
+                    self.savedRiseRun = True
+                elif crossing == QTS_SUNSET:
+                    self.savedSetRun = True
+            else:
+                # Saved it already
+                outLine = "#"
 
         return outLine
 
@@ -418,13 +428,8 @@ class SunsetterConfig:
                 # If we have a timezone (signed decimal clock offset in hours)
                 tmpLine = self.timezoneProcessOutput(theLine)
                 if tmpLine is None:
-                    # If we have a program to run at sunrise (string)
-                    tmpLine = self.solarCrossingProcessOutput(theLine,
-                                                              QTS_SUNRISE)
-                    if tmpLine is None:
-                        # If we have a program to run at sunset (string)
-                        tmpLine = self.solarCrossingProcessOutput(theLine,
-                                                                  QTS_SUNSET)
+                    # If we have a program to run at sunrise or sunset (string)
+                    tmpLine = self.solarCrossingProcessOutput(theLine)
 
             # If we get here with tmpLine not None we can treat it generically
             # for all cases

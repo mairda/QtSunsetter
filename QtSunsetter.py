@@ -72,8 +72,6 @@ from QtSsDebug import debugMessage, disableDebug, enableDebug, debugIsEnabled
 class QtSunsetter(QWidget):
     def __init__(self):
         super(QtSunsetter, self).__init__()
-        self.SUNRISE = 1
-        self.SUNSET = 2
         self.nextCrossing = None
         setLocalTZ()
         self.presetConfig()
@@ -102,8 +100,8 @@ class QtSunsetter(QWidget):
         self.showLocation()
 
         # Show any saved sunset/sunrise programs
-        self.showSolarCrossingProgramText(self.initRiseRun, True)
-        self.showSolarCrossingProgramText(self.initSetRun, False)
+        self.showSolarCrossingProgramText(self.initRiseRun, QTS_SUNRISE)
+        self.showSolarCrossingProgramText(self.initSetRun, QTS_SUNSET)
 
         # Connect the set location button to our slot
         btnSetLocation = self.findChild(QPushButton, "btnSetLocation")
