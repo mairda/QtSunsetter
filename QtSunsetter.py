@@ -18,6 +18,26 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
+#
+# PySide2 based Qt program providing daily sunset/sunrise time calculation abd
+# the ability to run a program of choice at rise and/or set
+#
+# Version: 1.0
+# Copyright (C) 2020/10/19 David A. Mair
+# This file is part of QtSunsetter<https://github.com/mairda/QtSunsetter.git>.
+#
+# QtSunsetter is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# QtSunsetter is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 import os
@@ -45,13 +65,15 @@ from QtSsTODMath import getTimeToNextHorizonCrossing
 # from QtSsTODMath import getTimeNowDurationOfLightPeriod
 from QtSsMath import setLatitude, setLongitude, getLatitude, setSystemTime
 from QtSsMath import getLongitude, getHomeTZ, setHomeTZ, setLocalTZ
-from QtSsConfig import SunsetterConfig
+from QtSsConfig import SunsetterConfig, QTS_SUNRISE, QTS_SUNSET
 from QtSsDebug import debugMessage, disableDebug, enableDebug, debugIsEnabled
 
 
 class QtSunsetter(QWidget):
     def __init__(self):
         super(QtSunsetter, self).__init__()
+        self.SUNRISE = 1
+        self.SUNSET = 2
         self.nextCrossing = None
         setLocalTZ()
         self.presetConfig()
@@ -80,14 +102,8 @@ class QtSunsetter(QWidget):
         self.showLocation()
 
         # Show any saved sunset/sunrise programs
-        if self.initRiseRun is not None:
-            riseRun = self.findChild(QLineEdit, "lnRiseRun")
-            if riseRun is not None:
-                riseRun.setText(self.initRiseRun)
-        if self.initSetRun is not None:
-            setRun = self.findChild(QLineEdit, "lnSetRun")
-            if setRun is not None:
-                setRun.setText(self.initSetRun)
+        self.showSolarCrossingProgramText(self.initRiseRun, True)
+        self.showSolarCrossingProgramText(self.initSetRun, False)
 
         # Connect the set location button to our slot
         btnSetLocation = self.findChild(QPushButton, "btnSetLocation")
@@ -203,6 +219,28 @@ class QtSunsetter(QWidget):
             locText = "{} {} {} {}".format(nLat, latDir[0], nLon, lonDir[0])
             ctrlLocation.setText(locText)
 
+    # Get the rise or set run program control
+    def getSolarCrossingProgramControl(self, atRise=QTS_SUNRISE):
+        if atRise == QTS_SUNRISE:
+            return self.findChild(QLineEdit, "lnRiseRun")
+        return self.findChild(QLineEdit, "lnSetRun")
+
+    # Show the program to run at sunrise or sunset
+    def showSolarCrossingProgramText(self, progText, atRise=QTS_SUNRISE):
+        if progText is not None:
+            crossingCtrl = self.getSolarCrossingProgramControl(atRise)
+            if crossingCtrl is not None:
+                crossingCtrl.setText(progText)
+
+    # Get the text from the control with the program to run at sunrise or
+    # sunset
+    def getSolarCrossingProgramText(self, atRise=QTS_SUNRISE):
+        crossingCtrl = self.getSolarCrossingProgramControl(atRise)
+        if crossingCtrl is not None:
+            return crossingCtrl.text()
+
+        return None
+
     # Return True if fileName argument is an existing, executable file
     # else return False
     def isRunnableFile(self, fileName):
@@ -231,14 +269,10 @@ class QtSunsetter(QWidget):
                     print("<: {}".format(uText))
 
     def sunriseReached(self):
-        riseRun = self.findChild(QLineEdit, "lnRiseRun")
-        if riseRun is not None:
-            self.runEventProgram(riseRun.text())
+        self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNRISE))
 
     def sunsetReached(self):
-        setRun = self.findChild(QLineEdit, "lnSetRun")
-        if setRun is not None:
-            self.runEventProgram(setRun.text())
+        self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNSET))
 
     # Set a supplied time or the current time in the control
     def showTime(self, newTime):
@@ -272,8 +306,8 @@ class QtSunsetter(QWidget):
                 self.shownSSet = sSet
 
     def getTargetLineEditColor(self):
-        riseRun = self.findChild(QLineEdit, "lnRiseRun")
-        setRun = self.findChild(QLineEdit, "lnSetRun")
+        riseRun = self.getSolarCrossingProgramControl(QTS_SUNRISE)
+        setRun = self.getSolarCrossingProgramControl(QTS_SUNSET)
         if (riseRun is not None) and (setRun is not None):
             wPalette = riseRun.palette()
             bgBrush = wPalette.brush(QPalette.Active, QPalette.Base)
@@ -324,15 +358,15 @@ class QtSunsetter(QWidget):
 
         return newColor
 
-    def recolorRunEditBackground(self, rise=True):
+    def recolorRunEditBackground(self, rise=QTS_SUNRISE):
         # Get the line edit (rise or set) and it's default background colors
-        if rise is True:
-            ctrlRun = self.findChild(QLineEdit, "lnRiseRun")
+        if rise == QTS_SUNRISE:
+            ctrlRun = self.getSolarCrossingProgramControl(QTS_SUNRISE)
             actvTgtColor = self.actvRiseTgtColor
             inactvTgtColor = self.inactvRiseTgtColor
             lightTime = itsNighttime()
         else:
-            ctrlRun = self.findChild(QLineEdit, "lnSetRun")
+            ctrlRun = self.getSolarCrossingProgramControl(QTS_SUNSET)
             actvTgtColor = self.actvSetTgtColor
             inactvTgtColor = self.inactvSetTgtColor
             lightTime = itsDaytime()
@@ -612,18 +646,18 @@ class QtSunsetter(QWidget):
         return newFile
 
     def chooseRiseRun(self):
-        riseRun = self.findChild(QLineEdit, "lnRiseRun")
-        if riseRun is not None:
-            fileName = self.chooseRunnableFile("sunrise", riseRun.text())
-            if (fileName is not None) and (fileName != ""):
-                riseRun.setText("{}".format(fileName))
+        fileName = self.chooseRunnableFile("sunrise",
+                                           self.getSolarCrossingProgramText(
+                                                    QTS_SUNRISE))
+        if (fileName is not None) and (fileName != ""):
+            self.showSolarCrossingProgramText(fileName, QTS_SUNRISE)
 
     def chooseSetRun(self):
-        setRun = self.findChild(QLineEdit, "lnSetRun")
-        if setRun is not None:
-            fileName = self.chooseRunnableFile("sunset", setRun.text())
-            if (fileName is not None) and (fileName != ""):
-                setRun.setText("{}".format(fileName))
+        fileName = self.chooseRunnableFile("sunset",
+                                           self.getSolarCrossingProgramText(
+                                                    QTS_SUNSET))
+        if (fileName is not None) and (fileName != ""):
+            self.showSolarCrossingProgramText(fileName, QTS_SUNSET)
 
     def getConfigFileDir(self):
         # Get the home directory path
@@ -653,19 +687,17 @@ class QtSunsetter(QWidget):
             bVal = config.getCorrectForSysTZ()
             if bVal is not None:
                 setCorrectForSysTZ(bVal)
-            self.initRiseRun = config.getSunriseRun()
+            self.initRiseRun = config.getSolarCrossingRun(QTS_SUNRISE)
             if self.initRiseRun is not None:
                 if self.isRunnableFile(self.initRiseRun):
-                    riseRun = self.findChild(QLineEdit, "lnRiseRun")
-                    if riseRun is not None:
-                        riseRun.setText("{}".format(self.initRiseRun))
+                    self.showSolarCrossingProgramText(self.initRiseRun,
+                                                      QTS_SUNRISE)
                 # debugMessage("sunrise program = {}".format(self.initRiseRun))
-            self.initSetRun = config.getSunsetRun()
+            self.initSetRun = config.getSolarCrossingRun(QTS_SUNSET)
             if self.initSetRun is not None:
                 if self.isRunnableFile(self.initSetRun):
-                    setRun = self.findChild(QLineEdit, "lnSetRun")
-                    if setRun is not None:
-                        setRun.setText("{}".format(self.initSetRun))
+                    self.showSolarCrossingProgramText(self.initSetRun,
+                                                      QTS_SUNSET)
                 # debugMessage("sunset program = {}".format(self.initSetRun))
 
     # Save the config but only replace supported configuration items while
@@ -676,12 +708,10 @@ class QtSunsetter(QWidget):
         config.setLongitude(getLongitude())
         config.setCorrectForSysTZ(getCorrectForSysTZ())
         config.setHomeTZ(getHomeTZ())
-        riseRun = self.findChild(QLineEdit, "lnRiseRun")
-        if riseRun is not None:
-            config.setSunriseRun(riseRun.text())
-        setRun = self.findChild(QLineEdit, "lnSetRun")
-        if setRun is not None:
-            config.setSunsetRun(setRun.text())
+        crTxt = self.getSolarCrossingProgramText(QTS_SUNRISE)
+        config.setSolarCrossingRun(crTxt, QTS_SUNRISE)
+        crTxt = self.getSolarCrossingProgramText(QTS_SUNSET)
+        config.setSolarCrossingRun(crTxt, QTS_SUNSET)
         config.saveConfig()
 
 

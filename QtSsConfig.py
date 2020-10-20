@@ -1,4 +1,23 @@
 # This Python file uses the following encoding: utf-8
+#
+# Configuration file handler for QtSunsetter
+#
+# Version: 1.0
+# Copyright (C) 2020/10/19 David A. Mair
+# This file is part of QtSunsetter<https://github.com/mairda/QtSunsetter.git>.
+#
+# QtSunsetter is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# QtSunsetter is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
 
@@ -36,11 +55,15 @@ class SunsetterConfig:
     def getCorrectForSysTZ(self):
         return self.correctForSysTZ
 
-    def getSunriseRun(self):
-        return self.sunriseRun
+    def getSolarCrossingRun(self, crossing):
+        global QTS_SUNRISE, QTS_SUNSET
 
-    def getSunsetRun(self):
-        return self.sunsetRun
+        if crossing == QTS_SUNSET:
+            return self.sunriseRun
+        elif crossing == QTS_SUNSET:
+            return self.sunsetRun
+
+        return None
 
     # Return True if fileName argument is an existing, executable file
     # else return False
@@ -68,13 +91,14 @@ class SunsetterConfig:
         if (newVal is True) or (newVal is False):
             self.correctForSysTZ = newVal
 
-    def setSunriseRun(self, newFileName):
-        if self.isRunnableFile(newFileName):
-            self.sunriseRun = newFileName
+    def setSolarCrossingRun(self, newFileName, crossing):
+        global QTS_SUNRISE, QTS_SUNSET
 
-    def setSunsetRun(self, newFileName):
         if self.isRunnableFile(newFileName):
-            self.sunsetRun = newFileName
+            if crossing == QTS_SUNRISE:
+                self.sunriseRun = newFileName
+            elif crossing == QTS_SUNSET:
+                self.sunsetRun = newFileName
 
     def getConfigFileDir(self):
         # Get the home directory path
@@ -161,35 +185,29 @@ class SunsetterConfig:
 
         return result
 
-    def sunriseRunConfig(self, cfgLine):
+    def solarCrossingRunConfig(self, cfgLine, crossing):
+        global QTS_SUNRISE, QTS_SUNSET
+
         result = False
-        m = re.search('^sunriserun=(.*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
+        if crossing == QTS_SUNRISE:
+            srchRE = '^sunriserun=(.*)$'
+        elif crossing == QTS_SUNSET:
+            srchRE = '^sunsetrun=(.*)$'
+        else:
+            # Unknown crossing
+            return result
+
+        m = re.search(srchRE, cfgLine, flags=re.IGNORECASE)
         if m is not None:
             fileName = m.group(1)
             if self.isRunnableFile(fileName):
-                self.setSunriseRun(fileName)
+                self.setSolarCrossingRun(fileName, cfgLine)
                 result = True
-            debugMessage("sunrise program = {}".format(fileName))
-
-        return result
-
-    def sunsetRunConfig(self, cfgLine):
-        result = False
-        m = re.search('^sunsetrun=(.*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            fileName = m.group(1)
-            if self.isRunnableFile(fileName):
-                self.setSunsetRun(fileName)
-                result = True
-            debugMessage("sunset program = {}".format(fileName))
 
         return result
 
     def processConfigLine(self, theLine):
+        global QTS_SUNRISE, QTS_SUNSET
         # Comments begin with a # character, remove them
         m = re.search('^(.+)\\#.+$', theLine)
         if m is not None:
@@ -217,11 +235,11 @@ class SunsetterConfig:
             return
 
         # If we have a program to run on sunrise
-        if self.sunriseRunConfig(theLine) is True:
+        if self.solarCrossingRunConfig(theLine, QTS_SUNRISE) is True:
             return
 
         # If we have a program to run on sunset
-        if self.sunsetRunConfig(theLine) is True:
+        if self.solarCrossingRunConfig(theLine, QTS_SUNSET) is True:
             return
 
         debugMessage("Unprocessed config line: {}".format(theLine))
@@ -321,41 +339,45 @@ class SunsetterConfig:
 
         return outLine
 
-    def riseRunProcessOutput(self, cfgLine):
-        outLine = None
-        m = re.search('^sunriserun=(.*)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            # If we haven't already saved it
-            if not self.savedRiseRun:
-                # Re-build using the current value
-                outLine = "sunriserun={}".format(self.getSunriseRun())
-                self.savedRiseRun = True
-            else:
-                # Saved it already
-                outLine = "#"
+    def solarCrossingProcessOutput(self, cfgLine, crossing):
+        global QTS_SUNRISE, QTS_SUNSET
 
-        return outLine
-
-    def setRunProcessOutput(self, cfgLine):
         outLine = None
-        m = re.search('^sunsetrun=(.+)$',
-                      cfgLine,
-                      flags=re.IGNORECASE)
-        if m is not None:
-            # If we haven't already saved it
-            if not self.savedSetRun:
-                # Re-build using the current value
-                outLine = "sunsetrun={}".format(self.getSunsetRun())
-                self.savedSetRun = True
-            else:
-                # Saved it already
-                outLine = "#"
+        if crossing == QTS_SUNRISE:
+            srchRE = '^sunriserun=(.*)$'
+            saved = self.savedRiseRun
+            cfgName = "sunriserun"
+        elif crossing == QTS_SUNSET:
+            srchRE = '^sunsetrun=(.+)$'
+            saved = self.savedSetRun
+            cfgName = "sunsetrun"
+        else:
+            srchRE = None
+
+        if srchRE is not None:
+            m = re.search(srchRE,
+                          cfgLine,
+                          flags=re.IGNORECASE)
+            if m is not None:
+                # If we haven't already saved it
+                if not saved:
+                    # Re-build using the current value
+                    runName = self.getSolarCrossingRun(crossing)
+                    outLine = "{}={}".format(cfgName, runName)
+
+                    if crossing == QTS_SUNRISE:
+                        self.savedRiseRun = True
+                    elif crossing == QTS_SUNSET:
+                        self.savedSetRun = True
+                else:
+                    # Saved it already
+                    outLine = "#"
 
         return outLine
 
     def processOutputConfigLine(self, outStream, theLine):
+        global QTS_SUNRISE, QTS_SUNSET
+
         if (outStream is None) or (theLine is None):
             return
 
@@ -397,10 +419,12 @@ class SunsetterConfig:
                 tmpLine = self.timezoneProcessOutput(theLine)
                 if tmpLine is None:
                     # If we have a program to run at sunrise (string)
-                    tmpLine = self.riseRunProcessOutput(theLine)
+                    tmpLine = self.solarCrossingProcessOutput(theLine,
+                                                              QTS_SUNRISE)
                     if tmpLine is None:
                         # If we have a program to run at sunset (string)
-                        tmpLine = self.setRunProcessOutput(theLine)
+                        tmpLine = self.solarCrossingProcessOutput(theLine,
+                                                                  QTS_SUNSET)
 
             # If we get here with tmpLine not None we can treat it generically
             # for all cases
@@ -479,6 +503,11 @@ class SunsetterConfig:
                 # Rename the temp file as the config file
                 tmpFile.rename(cfgFilename)
 
+
+# These "constants" are used to allow shared implementation details for some
+# functionality applying to both sunrise and sunset in a similar way
+QTS_SUNRISE = 1
+QTS_SUNSET = 2
 
 # if __name__ == "__main__":
 #     pass

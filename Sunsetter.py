@@ -18,6 +18,25 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Code for a console implementation of what QtSunsetter.py does
+#
+# Version: 1.0
+# Copyright (C) 2020/10/19 David A. Mair
+# This file is part of QtSunsetter<https://github.com/mairda/QtSunsetter.git>.
+#
+# QtSunsetter is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# QtSunsetter is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 import subprocess
@@ -96,6 +115,7 @@ def doWait(remainingSeconds):
 
 # No argument support, use globals to set state
 
+# disableDebug()
 enableDebug()
 
 # Location, latitude/longitude
@@ -120,7 +140,7 @@ useTZ = useTZs / 3600.0
 setHomeTZ(useTZs)
 # debugMessage("Using timezone offset {} hours".format(useTZ))
 
-# enable exec on horizon crossings
+# enable exec on solar horizon crossings
 enableRun = False
 
 if __name__ == '__main__':
@@ -129,6 +149,8 @@ if __name__ == '__main__':
 
     # Which boundary we cross next
     nextCrossing = None
+
+    # Just keep going until stopped
     while True:
         print("")
 
