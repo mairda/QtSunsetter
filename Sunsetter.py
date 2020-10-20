@@ -53,7 +53,6 @@ from QtSsMath import SsMathTest, testFunction
 def sunriseReached():
     if enableRun is True:
         # Just made the crossing to day, do our work
-        sunriseReached()
         sproc = subprocess.Popen(['/root/bin/morning.sh'],
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT)
