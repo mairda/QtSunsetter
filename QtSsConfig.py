@@ -189,14 +189,12 @@ class SunsetterConfig:
         global QTS_SUNRISE, QTS_SUNSET
 
         result = False
-        sunriseCfgRE = '^sunriserun=(.*)$'
-        sunsetCfgRE = '^sunsetrun=(.*)$'
 
         # Apply the sunrise regexp
-        m = re.search(sunriseCfgRE, cfgLine, flags=re.IGNORECASE)
+        m = re.search('^sunriserun=(.*)$', cfgLine, flags=re.IGNORECASE)
         if m is None:
             # No match, apply the sunset regexp
-            m = re.search(sunsetCfgRE, cfgLine, flags=re.IGNORECASE)
+            m = re.search('^sunsetrun=(.*)$', cfgLine, flags=re.IGNORECASE)
             if m is not None:
                 crossing = QTS_SUNSET
         else:
@@ -340,20 +338,18 @@ class SunsetterConfig:
 
         return outLine
 
-    def solarCrossingProcessOutput(self, cfgLine):
+    def solarCrossingRunProcessOutput(self, cfgLine):
         global QTS_SUNRISE, QTS_SUNSET
 
         outLine = None
-        sunriseCfgRE = '^sunriserun=(.*)$'
-        sunsetCfgRE = '^sunsetrun=(.+)$'
 
         # Try the sunrise regexp against the line
-        m = re.search(sunriseCfgRE,
+        m = re.search('^sunriserun=(.*)$',
                       cfgLine,
                       flags=re.IGNORECASE)
         if m is None:
             # Sunrise failed, try the sunset regexp against the line
-            m = re.search(sunsetCfgRE,
+            m = re.search('^sunsetrun=(.+)$',
                           cfgLine,
                           flags=re.IGNORECASE)
             if m is not None:
@@ -429,7 +425,7 @@ class SunsetterConfig:
                 tmpLine = self.timezoneProcessOutput(theLine)
                 if tmpLine is None:
                     # If we have a program to run at sunrise or sunset (string)
-                    tmpLine = self.solarCrossingProcessOutput(theLine)
+                    tmpLine = self.solarCrossingRunProcessOutput(theLine)
 
             # If we get here with tmpLine not None we can treat it generically
             # for all cases
