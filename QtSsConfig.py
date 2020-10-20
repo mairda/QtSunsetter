@@ -58,7 +58,7 @@ class SunsetterConfig:
     def getSolarCrossingRun(self, crossing):
         global QTS_SUNRISE, QTS_SUNSET
 
-        if crossing == QTS_SUNSET:
+        if crossing == QTS_SUNRISE:
             return self.sunriseRun
         elif crossing == QTS_SUNSET:
             return self.sunsetRun
@@ -197,7 +197,8 @@ class SunsetterConfig:
         if m is None:
             # No match, apply the sunset regexp
             m = re.search(sunsetCfgRE, cfgLine, flags=re.IGNORECASE)
-            crossing = QTS_SUNSET
+            if m is not None:
+                crossing = QTS_SUNSET
         else:
             # Sunrise regexp matched
             crossing = QTS_SUNRISE
@@ -206,13 +207,12 @@ class SunsetterConfig:
         if m is not None:
             fileName = m.group(1)
             if self.isRunnableFile(fileName):
-                self.setSolarCrossingRun(fileName, cfgLine, crossing)
+                self.setSolarCrossingRun(fileName, crossing)
                 result = True
 
         return result
 
     def processConfigLine(self, theLine):
-        global QTS_SUNRISE, QTS_SUNSET
         # Comments begin with a # character, remove them
         m = re.search('^(.+)\\#.+$', theLine)
         if m is not None:
