@@ -103,7 +103,7 @@ class QtSunsetter(QWidget):
         self.showSolarCrossingProgramText(self.initRiseRun, QTS_SUNRISE)
         self.showSolarCrossingProgramText(self.initSetRun, QTS_SUNSET)
 
-        # Connect the set location button to our slot
+        # Connect the settings button to our slot
         btnSetLocation = self.findChild(QPushButton, "btnSetLocation")
         if btnSetLocation is not None:
             QObject.connect(btnSetLocation, SIGNAL('clicked()'),
@@ -225,10 +225,11 @@ class QtSunsetter(QWidget):
 
     # Show the program to run at sunrise or sunset
     def showSolarCrossingProgramText(self, progText, atRise=QTS_SUNRISE):
-        if progText is not None:
-            crossingCtrl = self.getSolarCrossingProgramControl(atRise)
-            if crossingCtrl is not None:
-                crossingCtrl.setText(progText)
+        if (progText is not None) and (progText != ""):
+            if self.isRunnableFile(progText):
+                crossingCtrl = self.getSolarCrossingProgramControl(atRise)
+                if crossingCtrl is not None:
+                    crossingCtrl.setText(progText)
 
     # Get the text from the control with the program to run at sunrise or
     # sunset
@@ -282,26 +283,23 @@ class QtSunsetter(QWidget):
                 TimeNow = newTime
             labTimeNow.setText("{}".format(TimeNow))
 
-    def showSunriseTime(self):
-        # Get today's sunrise time and show it if it is not what we last showed
-        # NB: Although we use tomorrow's sunrise to give the time until sunrise
-        # after sunset has passed, we only show today's sunrise and sunset
-        # literal times
-        sRise = getSunriseTime()
-        if sRise != self.shownSRise:
-            labSunrise = self.findChild(QLabel, "sunrise")
-            if labSunrise is not None:
-                labSunrise.setText("{}".format(sRise))
-                self.shownSRise = sRise
+    # SHow the sunset or sunrise time
+    def showSolarCrossingTime(self, crossing=QTS_SUNRISE):
+        if crossing == QTS_SUNRISE:
+            theTime = getSunriseTime()
+            labCtrl = self.findChild(QLabel, "sunrise")
+        elif crossing == QTS_SUNSET:
+            theTime = getSunsetTime()
+            labCtrl = self.findChild(QLabel, "sunset")
+        else:
+            labCtrl = None
 
-    def showSunsetTime(self):
-        # Get today's sunset time and show it if it is not what we last showed
-        sSet = getSunsetTime()
-        if sSet != self.shownSSet:
-            labSunset = self.findChild(QLabel, "sunset")
-            if labSunset is not None:
-                labSunset.setText("{}".format(sSet))
-                self.shownSSet = sSet
+        if labCtrl is not None:
+            labCtrl.setText("{}".format(theTime))
+            if crossing == QTS_SUNRISE:
+                self.shownSRise = theTime
+            elif crossing == QTS_SUNSET:
+                self.shownSSet = theTime
 
     def getTargetLineEditColor(self):
         riseRun = self.getSolarCrossingProgramControl(QTS_SUNRISE)
@@ -427,8 +425,8 @@ class QtSunsetter(QWidget):
 
         # In the main window, show the current, sunrise and sunset times
         self.showTime(None)
-        self.showSunriseTime()
-        self.showSunsetTime()
+        self.showSolarCrossingTime(QTS_SUNRISE)
+        self.showSolarCrossingTime(QTS_SUNSET)
 
         # debugMessage("    Daytime as a fraction of day: {}".format(daytimeFractionOfDay()))
         # debugMessage("  Nighttime as a fraction of day: {}".format(nighttimeFractionOfDay()))
@@ -465,15 +463,15 @@ class QtSunsetter(QWidget):
             labrTimeValue.setText("{}".format(diffTime))
 
         # Re-color the background of the run at sunrise control
-        self.recolorRunEditBackground(True)
+        self.recolorRunEditBackground(QTS_SUNRISE)
         # Re-color the background of the run at sunset control
-        self.recolorRunEditBackground(False)
+        self.recolorRunEditBackground(QTS_SUNSET)
 
     def signLatLonDirection(self, location, direction):
         # If the direction is South or West, the position is negative
         if ((direction == "South") or (direction == "West")) and\
                 (location > 0.0):
-            location = 0 - location
+            location = 0.0 - location
         elif location < 0.0:
             location = abs(location)
 
@@ -623,11 +621,18 @@ class QtSunsetter(QWidget):
 
         return useDir
 
-    def chooseRunnableFile(self, sunHorizon, curFile):
+    def chooseRunnableFile(self, curFile, crossing=QTS_SUNRISE):
+        if crossing == QTS_SUNRISE:
+            horizonText = "sunrise"
+        elif crossing == QTS_SUNSET:
+            horizonText = "sunset"
+        else:
+            horizonText = None
+
         newFile = ""
-        if (sunHorizon == "sunrise") or (sunHorizon == "sunset"):
+        if horizonText is not None:
             homeDir = self.getChooseDirFrom(curFile)
-            ofPrompt = "Choose a program to be run at {}".format(sunHorizon)
+            ofPrompt = "Choose a program to be run at {}".format(horizonText)
             (fileName, selFilter) = QFileDialog.getOpenFileName(self,
                                                                 ofPrompt,
                                                                 homeDir,
@@ -643,19 +648,16 @@ class QtSunsetter(QWidget):
 
         return newFile
 
+    def chooseSolarCrossingRun(self, crossing=QTS_SUNRISE):
+        curFile = self.getSolarCrossingProgramText(crossing)
+        fileName = self.chooseRunnableFile(curFile, crossing)
+        self.showSolarCrossingProgramText(fileName, crossing)
+
     def chooseRiseRun(self):
-        fileName = self.chooseRunnableFile("sunrise",
-                                           self.getSolarCrossingProgramText(
-                                                    QTS_SUNRISE))
-        if (fileName is not None) and (fileName != ""):
-            self.showSolarCrossingProgramText(fileName, QTS_SUNRISE)
+        self.chooseSolarCrossingRun(QTS_SUNRISE)
 
     def chooseSetRun(self):
-        fileName = self.chooseRunnableFile("sunset",
-                                           self.getSolarCrossingProgramText(
-                                                    QTS_SUNSET))
-        if (fileName is not None) and (fileName != ""):
-            self.showSolarCrossingProgramText(fileName, QTS_SUNSET)
+        self.chooseSolarCrossingRun(QTS_SUNRISE)
 
     def getConfigFileDir(self):
         # Get the home directory path
@@ -686,17 +688,13 @@ class QtSunsetter(QWidget):
             if bVal is not None:
                 setCorrectForSysTZ(bVal)
             self.initRiseRun = config.getSolarCrossingRun(QTS_SUNRISE)
-            if self.initRiseRun is not None:
-                if self.isRunnableFile(self.initRiseRun):
-                    self.showSolarCrossingProgramText(self.initRiseRun,
-                                                      QTS_SUNRISE)
-                # debugMessage("sunrise program = {}".format(self.initRiseRun))
+            self.showSolarCrossingProgramText(self.initRiseRun,
+                                              QTS_SUNRISE)
+            # debugMessage("sunrise program = {}".format(self.initRiseRun))
             self.initSetRun = config.getSolarCrossingRun(QTS_SUNSET)
-            if self.initSetRun is not None:
-                if self.isRunnableFile(self.initSetRun):
-                    self.showSolarCrossingProgramText(self.initSetRun,
-                                                      QTS_SUNSET)
-                # debugMessage("sunset program = {}".format(self.initSetRun))
+            self.showSolarCrossingProgramText(self.initSetRun,
+                                              QTS_SUNSET)
+            # debugMessage("sunset program = {}".format(self.initSetRun))
 
     # Save the config but only replace supported configuration items while
     # keeping all other content
