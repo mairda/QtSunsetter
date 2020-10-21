@@ -78,7 +78,7 @@
     <item>
      <widget class="QPushButton" name="btnSetLocation">
       <property name="text">
-       <string>Set Location</string>
+       <string>Settings...</string>
       </property>
      </widget>
     </item>

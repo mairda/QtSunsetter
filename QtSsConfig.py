@@ -290,34 +290,42 @@ class SunsetterConfig:
 
     def latLonProcessOutput(self, cfgLine):
         outLine = None
-        isLat = True
+
+        # Match the latitude regexp with the line
         m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                       cfgLine,
                       flags=re.IGNORECASE)
         if m is None:
-            isLat = False
+            # Failed, match the longitude regexp with the line
             m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                           cfgLine,
                           flags=re.IGNORECASE)
+            if m is not None:
+                # Matched longitude
+                isLat = False
+                coordName = "longitude"
+                posn = self.getLongitude()
+                saved = self.savedLon
+        else:
+            # Matched latitude
+            isLat = True
+            coordName = "latitude"
+            posn = self.getLatitude()
+            saved = self.savedLat
+
+        # If we have a latitude or longitude line
         if m is not None:
-            if isLat:
-                # If we haven't already saved latitude
-                if not self.savedLat:
-                    # Re-build using the current latitude
-                    outLine = "latitude={}".format(self.getLatitude())
+            # If it's not already saved
+            if saved is False:
+                # Re-build with the current position
+                outLine = "{}={}".format(coordName, posn)
+                if isLat:
                     self.savedLat = True
                 else:
-                    # Saved it already, make the line a comment
-                    outLine = "# "
-            else:
-                # If we haven't already saved longitude
-                if not self.savedLon:
-                    # Re-build using the current longitude
-                    outLine = "longitude={}".format(self.getLongitude())
                     self.savedLon = True
-                else:
-                    # Saved it already, make the line a comment
-                    outLine = "#"
+            else:
+                # Saved it already, make the line a comment
+                outLine = "#"
 
         return outLine
 
@@ -456,10 +464,11 @@ class SunsetterConfig:
         cfgFilename = self.getConfigFilename()
         tmpFilename = self.getConfigTempFilename()
 
-        # Use any original config file and a temp file to write
+        # Use any original config file to read and a temp file to write
         cfgFile = QFile(cfgFilename)
         tmpFile = QFile(tmpFilename)
         if (cfgFile is not None) and (tmpFile is not None):
+            # Open the input
             inStream = None
             if cfgFile.exists():
                 debugMessage("Config file found")
