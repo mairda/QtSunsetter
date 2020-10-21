@@ -18,16 +18,16 @@ Required libraries include:
 
 Some of those will be installed by default with Pythoin 3.8+
 
-The goal in writing this was for use of a live webcam frame capture application that requires manual modification of brightness/contrast type controls where day and night required different assumptions. A console version is used at present and this is a partially complete Qt UI based version that requires addition of the ability to execute a pair of "on sunrise/sunset" external applications at the correct time.
+The goal in writing this was for use of a live webcam frame capture application that requires manual modification of brightness/contrast type controls where day and night required different assumptions. A console version is used at present and this is a nearly complete Qt UI based version.
 
 The solar time code is based on spreadsheet based examples published by the NOAA organization at: https://www.esrl.noaa.gov/gmd/grad/solcalc/calcdetails.html
 
 As-of Spetember 2020, the intended target platform is Linux, no effort has been made to test functionality on other platforms.
 
-Persistent configuration can be stored in the user's home directory, it current supports comments beginning at # characters and supports four settings:
+Persistent configuration can be stored in the user's home directory, it currently supports comments beginning at # characters and supports six settings:
 
 
-Latitude as a signed decimal floating point number (positive values are North, negative values are South). Longitude as a signed decimal floating point number (positive values are East, negative values are West). The clock timezone offset in hours for the configured latitude/longitude as a signed decimal number. An optional switch to correct the displayed time from local system clock to the configured timezone clock offset. If not present the local system clock is used as the time at the configured latitude/longitude. Two options, one each to specify a program to run as sunrise or sunset is passed while QtSunsetter.py is running. Each can be a shell script. An example configuration might look like:
+Latitude as a signed decimal floating point number (positive values are North, negative values are South). Longitude as a signed decimal floating point number (positive values are East, negative values are West). The clock timezone offset in hours for the configured latitude/longitude as a signed decimal number. An optional switch to correct the displayed time from local system clock to the configured timezone clock offset. If not present the local system clock is used as the time at the configured latitude/longitude. Two options, one each to specify a program to run at sunrise or sunset is passed while QtSunsetter.py is running. Each can be a shell script. An example configuration might look like:
 
 
 \# A place to watch
