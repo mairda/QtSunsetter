@@ -131,16 +131,18 @@ class SunsetterConfig:
         return tmpFilename
 
     def latlonConfig(self, cfgLine):
-        isLat = True
         nVal = None
         m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                       cfgLine,
                       flags=re.IGNORECASE)
         if m is None:
-            isLat = False
             m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                           cfgLine,
                           flags=re.IGNORECASE)
+            isLat = False
+        else:
+            isLat = True
+
         if m is not None:
             val = m.group(1)
             try:
@@ -220,11 +222,7 @@ class SunsetterConfig:
         if (theLine == "") or (theLine is None):
             return
 
-        # If we have a latitude (signed decimal)
-        if self.latlonConfig(theLine) is True:
-            return
-
-        # If we have a longitude (signed decimal)
+        # If we have a latitude or longitude (signed decimal)
         if self.latlonConfig(theLine) is True:
             return
 
