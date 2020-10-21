@@ -22,7 +22,7 @@ The goal in writing this was for use of a live webcam frame capture application 
 
 The solar time code is based on spreadsheet based examples published by the NOAA organization at: https://www.esrl.noaa.gov/gmd/grad/solcalc/calcdetails.html
 
-As-of Spetember 2020, the intended target platform is Linux, no effort has been made to test functionality on other platforms.
+As-of September 2020, the intended target platform is Linux, no effort has been made to test functionality on other platforms.
 
 Persistent configuration can be stored in the user's home directory, it currently supports comments beginning at # characters and supports six settings:
 
