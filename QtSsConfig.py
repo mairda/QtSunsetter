@@ -22,11 +22,14 @@
 import re
 
 from PySide2.QtCore import QDir, QFile, QIODevice, QTextStream, QFileInfo
-from QtSsDebug import debugMessage
+from QtSsDebug import warningMessage, debugMessage
 
 
 class SunsetterConfig:
     def __init__(self, cfgFileName=None):
+        # A name for this object in warning messages
+        self.configSrcFrom = "Config"
+
         # If no config filename was supplied generate one
         if cfgFileName is None:
             self.fileName = self.getConfigFilename()
@@ -62,6 +65,11 @@ class SunsetterConfig:
             return self.sunriseRun
         elif crossing == QTS_SUNSET:
             return self.sunsetRun
+        else:
+            warningMessage("Attempt to get run program for "
+                           "unrecognized solar horizon"
+                           "crossing: {}".format(crossing),
+                           self.configSrcFrom)
 
         return None
 
@@ -78,18 +86,34 @@ class SunsetterConfig:
     def setLatitude(self, newLat):
         if (newLat >= -90.0) and (newLat <= 90.0):
             self.latitude = newLat
+        else:
+            warningMessage("Attempt to set invalid"
+                           "latitude: {}".format(newLat),
+                           self.configSrcFrom)
 
     def setLongitude(self, newLon):
         if (newLon >= -180.0) and (newLon <= 180.0):
             self.longitude = newLon
+        else:
+            warningMessage("Attempt to set invalid"
+                           "longitude: {}".format(newLon),
+                           self.configSrcFrom)
 
     def setHomeTZ(self, newTZ):
         if (newTZ >= -12.0) and (newTZ <= 12):
             self.homeTZ = newTZ
+        else:
+            warningMessage("Attempt to set invalid"
+                           "timezone: {}".format(newTZ),
+                           self.configSrcFrom)
 
     def setCorrectForSysTZ(self, newVal):
         if (newVal is True) or (newVal is False):
             self.correctForSysTZ = newVal
+        else:
+            warningMessage("Attempt to set invalid"
+                           "correct for system timezone: {}".format(newVal),
+                           self.configSrcFrom)
 
     def setSolarCrossingRun(self, newFileName, crossing):
         global QTS_SUNRISE, QTS_SUNSET
@@ -99,6 +123,23 @@ class SunsetterConfig:
                 self.sunriseRun = newFileName
             elif crossing == QTS_SUNSET:
                 self.sunsetRun = newFileName
+            else:
+                warningMessage("Attempt to set run program "
+                               "for unrecognized solar horizon "
+                               "crossing: {}".format(crossing),
+                               self.configSrcFrom)
+        else:
+            if crossing == QTS_SUNRISE:
+                eventName = "sunrise"
+            elif crossing == QTS_SUNSET:
+                eventName = "sunset"
+            else:
+                eventName = "unrecognized"
+
+            warningMessage("Attempt to set missing or non "
+                           "executable file as {} run "
+                           "program {}".format(eventName, newFileName),
+                           self.configSrcFrom)
 
     def getConfigFileDir(self):
         # Get the home directory path
@@ -214,7 +255,7 @@ class SunsetterConfig:
 
     def processConfigLine(self, theLine):
         # Comments begin with a # character, remove them
-        m = re.search('^(.+)\\#.+$', theLine)
+        m = re.search('^(.*)\\s*\\#.*$', theLine)
         if m is not None:
             theLine = m.group(1)
 
@@ -239,7 +280,8 @@ class SunsetterConfig:
         if self.solarCrossingRunConfig(theLine) is True:
             return
 
-        debugMessage("Unprocessed config line: {}".format(theLine))
+        warningMessage("Unprocessed config file line: {}".format(theLine),
+                       self.configSrcFrom)
 
     def loadConfig(self):
         self.initRiseRun = None
@@ -491,6 +533,10 @@ class SunsetterConfig:
                     # Remove the original config file
                     cfgFile.remove()
                     cfgFile = None
+                else:
+                    warningMessage("Unable to open file to save "
+                                   "configuration: {}".format(tmpFilename),
+                                   self.configSrcFrom)
 
                 # Fixup anything we didn't save in the temp file
                 if not self.savedLat:
@@ -510,6 +556,10 @@ class SunsetterConfig:
 
                 # Rename the temp file as the config file
                 tmpFile.rename(cfgFilename)
+            else:
+                warningMessage("Unable to open previous file to save "
+                               "configuration: {}".format(cfgFilename),
+                               self.configSrcFrom)
 
 
 # These "constants" are used to allow shared implementation details for some

@@ -27,6 +27,16 @@ def debugMessage(txt):
         print(txt)
 
 
+def warningMessage(msgTxt, srcFrom=None):
+    global doWarnings
+
+    if doWarnings is True:
+        if srcFrom is not None:
+            print("Sunsetter {}: {}".format(srcFrom, msgTxt))
+        else:
+            print(msgTxt)
+
+
 def debugIsEnabled():
     global doDebug
 
@@ -45,7 +55,25 @@ def enableDebug():
     doDebug = True
 
 
+def warningsEnabled():
+    global doWarnings
+
+    return doWarnings
+
+
+def disableWarnings():
+    global doWarnings
+
+    doWarnings = False
+
+
+def enableWarnings():
+    global doWarnings
+
+    doWarnings = True
+
 doDebug = False
+doWarnings = False
 
 # if __name__ == "__main__":
 #     pass

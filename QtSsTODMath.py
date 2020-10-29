@@ -37,6 +37,7 @@ from QtSsMath import LocalSunrise, LocalSunset, getHomeTZ, timeFromDayFraction
 # Returns a daytime type (h:m:s)
 def getTimeNow():
     systemTime = time.localtime()
+
     return datetime.time(systemTime[3], systemTime[4], systemTime[5])
 
 
@@ -96,6 +97,7 @@ def getTimeNowFractionofDay():
     y = timeNow.hour * 3600.0
     y += timeNow.minute * 60.0
     y += timeNow.second
+
     return (y / 86400.0)
 
 
@@ -112,6 +114,7 @@ def getSunriseFractionOfDay():
 # Returns a datetime object (h:m:s)
 def getSunriseTime():
     x = getSunriseFractionOfDay()
+
     return timeFromDayFraction(x)
 
 
@@ -119,6 +122,7 @@ def getSunriseTime():
 # Returns a timedelta object
 def getSunriseDelta():
     sRise = getSunriseTime()
+
     return datetime.timedelta(hours=sRise.hour,
                               minutes=sRise.minute,
                               seconds=sRise.second)
@@ -137,6 +141,7 @@ def getTomorrowSunriseFractionOfDay():
 # Returns a datetime object (h:m:s)
 def getTomorrowSunriseTime():
     x = getTomorrowSunriseFractionOfDay()
+
     return timeFromDayFraction(x)
 
 
@@ -144,6 +149,7 @@ def getTomorrowSunriseTime():
 # Returns a timedelta object
 def getTomorrowSunriseDelta():
     sRise = getTomorrowSunriseTime()
+
     return datetime.timedelta(hours=sRise.hour,
                               minutes=sRise.minute,
                               seconds=sRise.second)
@@ -162,6 +168,7 @@ def getSunsetFractionOfDay():
 # Returns a datetime object (h:m:s)
 def getSunsetTime():
     x = getSunsetFractionOfDay()
+
     return timeFromDayFraction(x)
 
 
@@ -169,6 +176,7 @@ def getSunsetTime():
 # Returns a timedelta object
 def getSunsetDelta():
     sSet = getSunsetTime()
+
     return datetime.timedelta(hours=sSet.hour,
                               minutes=sSet.minute,
                               seconds=sSet.second)

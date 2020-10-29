@@ -66,12 +66,18 @@ from QtSsTODMath import getTimeToNextHorizonCrossing
 from QtSsMath import setLatitude, setLongitude, getLatitude, setSystemTime
 from QtSsMath import getLongitude, getHomeTZ, setHomeTZ, setLocalTZ
 from QtSsConfig import SunsetterConfig, QTS_SUNRISE, QTS_SUNSET
-from QtSsDebug import debugMessage, disableDebug, enableDebug, debugIsEnabled
+from QtSsDebug import disableWarnings, enableWarnings, warningsEnabled
+from QtSsDebug import warningMessage
+from QtSsDebug import disableDebug, enableDebug, debugIsEnabled, debugMessage
 
 
 class QtSunsetter(QWidget):
     def __init__(self):
         super(QtSunsetter, self).__init__()
+
+        # A name for this object in warning messages
+        self.appSrcFrom = "App"
+
         self.nextCrossing = None
         setLocalTZ()
         self.presetConfig()
@@ -608,7 +614,7 @@ class QtSunsetter(QWidget):
             # Display any new location
             self.showLocation()
         else:
-            debugMessage("location controls NOT found")
+            warningMessage("location controls NOT found", self.appSrcFrom)
 
     def getChooseDirFrom(self, curFile=None):
         if (curFile is None) or (curFile == ""):
@@ -713,6 +719,9 @@ class QtSunsetter(QWidget):
 
 disableDebug()
 # enableDebug()
+
+disableWarnings()
+# enableWarnings()
 
 if __name__ == "__main__":
     app = QApplication([])
