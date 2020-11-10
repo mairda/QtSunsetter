@@ -43,12 +43,17 @@ import sys
 import os
 import subprocess
 
+from math import sin, cos, tan, asin, acos, atan2, degrees, radians, pi, pow
+
 from PySide2.QtWidgets import QApplication, QWidget, QPushButton, QDialog
 from PySide2.QtWidgets import QLineEdit, QLabel, QComboBox, QCheckBox
 from PySide2.QtWidgets import QSpinBox, QMessageBox, QFileDialog
+from PySide2.QtWidgets import QGraphicsView, QGraphicsScene
+from PySide2.QtCore import Qt
 from PySide2.QtCore import QFile, QPoint, QObject, QTimer, SIGNAL, SLOT
 from PySide2.QtCore import QDir, QFileInfo
-from PySide2.QtGui import QColor, QPalette, QBrush
+from PySide2.QtGui import QColor, QPen
+from PySide2.QtGui import QPalette, QPainter, QBrush, QIcon
 from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsDialog
@@ -77,6 +82,12 @@ class QtSunsetter(QWidget):
 
         # A name for this object in warning messages
         self.appSrcFrom = "App"
+
+        # Last sky object position is not on-screen
+        self.lastPan = -1.0
+        self.lastHeight = -1.0
+        self.lastXObject = -1.0
+        self.lastYObject = -1.0
 
         self.nextCrossing = None
         setLocalTZ()
@@ -425,6 +436,317 @@ class QtSunsetter(QWidget):
             if newPalette is True:
                 ctrlRun.setPalette(wPalette)
 
+    def drawIconByAngle(self):
+        view = self.findChild(QGraphicsView, "dayIcon")
+        if view is not None:
+            scene = view.scene()
+            if scene is None:
+                scene = QGraphicsScene()
+                view.setScene(scene)
+
+            # Some constants used a lot so give them names
+            vSize = 128.0
+            vHalfSize = vSize / 2.0
+            # minXY = 0.0
+            maxXY = 127.0
+            offsetXY = vSize - maxXY
+            objectRad = 12.0
+            objectDiam = 2.0 * objectRad
+            skyHeight = 85
+            # groundHeight = vSize - skyHeight
+            horizonLine = skyHeight - offsetXY
+            skyExtra = (skyHeight - vHalfSize) + offsetXY
+            xCenter = maxXY / 2.0
+            yCenter = horizonLine + 0.5
+            margin = 2.0
+            # nudge = 0.5
+
+            # Get the direction to the Sun (are we in the Southern or Northern
+            # hemisphere). True is Northern, False is Southern
+            skyView = (getLatitude() >= 0.0)
+            # skyView = True
+
+            # Start position is at maxY,-1, get the angle
+            startAngle = atan2(-1, maxXY)
+            sweepAngle = pi + 2.0 * abs(startAngle)
+
+            # Ranges from 0.0 to 1.0, used to compute a location for
+            # the sky object. Get other ranges for the same
+            t = getTimeNowFractionOfLightPeriod()
+            # t = 0.9945505
+            # t = 0.9
+            tRev = 1.0 - t
+            if t < 0.5:
+                tBounce = 2.0 * t
+            else:
+                tBounce = 2.0 * (1.0 - t)
+            tRevBounce = 1.0 - tBounce
+            # print("{} / {} / {} / {}".format(t, tRev, tBounce, tRevBounce))
+
+            # Caculate the current angle based on a South or North view of
+            # the sun
+            if skyView is True:
+                startAngle = atan2(-1, 0.0)
+                angle = (tRev * sweepAngle) - startAngle - (pi / 2.0)
+            else:
+                angle = (t * sweepAngle) + startAngle
+
+            # Calculate the "hypotenuse length of the line to the object
+            hyp = round(vHalfSize + (tBounce * skyExtra), 2)
+
+            # Calculate a horizontal offset for margin, it is negative on
+            # the right, zero in the center and positive on the left
+            if skyView is True:
+                xOffset = tRevBounce * 16.0 * margin
+                if t >= 0.5:
+                    xOffset = 0 - xOffset
+            else:
+                xOffset = tRevBounce * 4.0 * margin
+                if t < 0.5:
+                    xOffset = 0 - xOffset
+
+            # Calculate a vertical offset for top margin, it is zero at
+            # the horizon and positive at the top of the sky
+            yOffset = tBounce * 2.5 * margin
+
+            # Now get x and y
+            xObject = round(xCenter + (cos(angle) * hyp)
+                            - (tRev * objectDiam) + xOffset, 2)
+            yObject = round(yCenter - (sin(angle) * hyp)
+                            + yOffset, 2)
+            # print("{}, {}". format(xCenter, yCenter))
+            # print("{} : {} : {} : {}".format(degrees(angle), hyp, xOffset, tRev))
+            # print("{}, {}". format(xObject, yObject))
+
+            # Convert for a sun view to the North or South
+            # if skyView is True:
+            #    xObject = 128.0 - xObject
+
+            # Compute colors based on fraction of day/night time
+            groundColor = QColor(0x7C, 0xFC, 0)
+            if itsDaytime():
+                # skyColor = QColor(0x87, 0xCE, 0xEB)
+                skyColor = QColor(0x87, 0xCE, 0xFA)
+                # skyNow = skyColor.darker(100.0 + (150.0 * tRevBounce))
+                # Use a more rapid rate of change closer to the crossing
+                skyScale = pow(2.0, tRevBounce) - 1.0
+                skyNow = skyColor.darker(100.0 + (150.0 * skyScale))
+                groundNow = groundColor.darker(100.0 + (200.0 * tRevBounce))
+                objectPen = QPen(Qt.yellow,
+                                 1,
+                                 Qt.SolidLine,
+                                 Qt.SquareCap,
+                                 Qt.BevelJoin)
+                objectBrush = QBrush(Qt.yellow)
+            else:
+                skyColor = QColor(0x2A, 0x2A, 0x35)
+                skyNow = skyColor.lighter(100.0 + (75.0 * tRevBounce))
+                groundNow = groundColor.darker(300.0 + (250.0 * tBounce))
+                objectPen = QPen(Qt.lightGray,
+                                 1,
+                                 Qt.SolidLine,
+                                 Qt.SquareCap,
+                                 Qt.BevelJoin)
+                objectBrush = QBrush(Qt.lightGray)
+
+            # Draw the objects if we have changed the object position
+            if (xObject != self.lastXObject) or (yObject != self.lastYObject):
+                skyPen = QPen(skyNow,
+                              1,
+                              Qt.SolidLine,
+                              Qt.SquareCap,
+                              Qt.BevelJoin)
+                skyBrush = QBrush(skyNow)
+                groundPen = QPen(groundNow,
+                                 1,
+                                 Qt.SolidLine,
+                                 Qt.SquareCap,
+                                 Qt.BevelJoin)
+                groundBrush = QBrush(groundNow)
+
+                scene.setSceneRect(0.0, 0.0, vSize, vSize)
+                scene.clear()
+                scene.addRect(0.0, 0.0, vSize, horizonLine, skyPen, skyBrush)
+                scene.addEllipse(xObject,
+                                 yObject,
+                                 objectDiam,
+                                 objectDiam,
+                                 objectPen,
+                                 objectBrush)
+                scene.addRect(0.0,
+                              horizonLine,
+                              vSize,
+                              vSize - horizonLine,
+                              groundPen,
+                              groundBrush)
+                self.lastXObject = xObject
+                self.lastYObject = yObject
+                view.show()
+
+    # Draw a pretend sun/moon position icon based on the time and horizon
+    # event timestamps
+    def drawIcon(self):
+        view = self.findChild(QGraphicsView, "dayIcon")
+        if view is not None:
+            scene = view.scene()
+            if scene is None:
+                scene = QGraphicsScene()
+                view.setScene(scene)
+
+            # Some constants used a lot so give them names
+            objectRad = 12.0
+            objectDiam = 2.0 * objectRad
+            horizon = 86.0
+            vSize = 128.0
+            margin = 2.0
+            lrMargins = 2.0 * margin
+            # panRange = vSize - objectDiam - lrMargins
+            panRange = vSize - objectRad - lrMargins
+            panOffset = lrMargins
+            skyHeight = horizon
+            topMargin = 2.0
+            tiltRange = skyHeight - topMargin
+            tiltOffset = 1.0
+
+            # Ranges from 0.0 to 1.0, use it to compute a location for
+            # the sky object
+            x = getTimeNowFractionOfLightPeriod()
+            # x = 0.92
+            revX = 1.0 - x
+            # Create xPart in range 0...1...0 evenly through light period
+            if x < 0.5:
+                xPart = 2.0 * x
+            else:
+                xPart = 2.0 * (1.0 - x)
+            # Create revPart in range 1...0...1 evenly through light period
+            revPart = 1.0 - xPart
+            # print("{} : {} : {} : {}".format(x, xPart, revPart, panRange))
+
+            # pan = vSize - (objectRad + (x * (vSize - objectRad - 8.0)))
+            # We pan an object of a given diameter to the fraction of the
+            # light period from right (max) to left (zero) so that the left
+            # and right edges of it never reach or pass the horizontal edge
+            # of the view. The left and right of the circle are not always
+            # visible, so the range where they can be is from about 8% to
+            # 92% of the light period.
+            # The workspace for the left edge of the object is the view size
+            # minus one radius of the object minus both margins
+            # Then, shift the result two margins to the left
+            # zzzX = revX
+            # zzzA = panRange
+            # zzzB = revX * panRange
+            # zzzC = zzzB - panOffset
+            # zzzD = zzzC
+            # zzzE = 0.0
+            # print("{} : {} : {} : {} : {} : {} : {}".format(vSize, zzzX, zzzA, zzzB, zzzC, zzzD, zzzE))
+            # pan = (panRange - (x * panRange)) - margin
+            # pan = zzzD
+            pan = (revX * panRange) - panOffset
+            # print("{} : {} : {}".format(pan, objectRad, objectDiam))
+            # 0 (12)----(12) 128
+
+            # We tilt an object of a given diameter from just under the horizon
+            # up to just under the top of the view at the fraction of the light
+            # period being 0.5 then down for the second half of the light
+            # period. xPart already goes from 0...1...0 across the light
+            # period with the peak in the middle of the light period
+            # Height range is between the line under the horizon and the line
+            # before the top of the view. Top of view is zero, high point of
+            # range is 1.0, lower positions have higher y co-ordinate
+            # Center of object moves whole skyHeight because it starts one
+            # margin under horizon and peaks at one margin under top of view
+            # xPart goes from zero to one at middle of day/night and back to
+            # zero. So xPart is the fraction of the actual height we
+            # need to be under the top of the view
+            # Offset it all down (higher numbers) one margin only, the height
+            # value is the y coordinate of the top of the circle
+            # height = horizon - (2.0 * xPart * tiltRange)
+            # print("{}".format(xPart))
+            # print("{}".format(tiltRange))
+            # print("{}".format(tiltOffset))
+            # yPart = 0.1
+            height = (horizon - (xPart * tiltRange)) + tiltOffset
+            # (86 - (2.0 * 0.1 * 86)) + 13
+            # (86 - (0.2 * 86)) + 13
+            # (86 - 17) + 13
+            # 82
+            # (86 - (2.0 * 0.0 * 86)) + 13
+            # (86 - (0.0 * 86)) + 13
+            # (86 - 0) + 13
+            # 99
+            # (86 - (2.0 * 0.0 * 86)) + 1.0
+            # (86 - (0.0 * 86)) + 1
+            # (86 - 0) + 1
+            # 87
+            # (86 - (2.0 * 0.5 * 86)) + 1.0
+            # (86 - (1.0 * 86)) + 1
+            # (86 - 86) + 1
+            # 1
+
+            groundColor = QColor(0x7C, 0xFC, 0)
+            if itsDaytime():
+                # skyColor = QColor(0x87, 0xCE, 0xEB)
+                skyColor = QColor(0x87, 0xCE, 0xFA)
+                # Set brightness based on fraction of day (0.5 is peak)
+                skyNow = skyColor.darker(125.0 + (125.0 * revPart))
+                groundNow = groundColor.darker(150.0 + (150.0 * revPart))
+                objectPen = QPen(Qt.yellow,
+                                 1,
+                                 Qt.SolidLine,
+                                 Qt.SquareCap,
+                                 Qt.BevelJoin)
+                objectBrush = QBrush(Qt.yellow)
+            else:
+                skyColor = QColor(0x2A, 0x2A, 0x35)
+                skyNow = skyColor.lighter(110.0 * revPart)
+                groundNow = groundColor.darker(300.0 + (150.0 * xPart))
+                objectPen = QPen(Qt.lightGray,
+                                 1,
+                                 Qt.SolidLine,
+                                 Qt.SquareCap,
+                                 Qt.BevelJoin)
+                objectBrush = QBrush(Qt.lightGray)
+
+            # groundNow = groundColor.darker(300.0 + 150.0)
+            # skyNow = skyColor.darker(250.0 * (0.99 - 0.5))
+            # skyColorB = QColor(0x2A, 0x2A, 0x35)
+            # groundNow = skyColorB.lighter(110.0 * (0.99 - 0.0))
+            # skyNow = groundColor.darker(300.0)
+            # groundNow = groundColor.darker(300.0)
+
+            skyPen = QPen(skyNow,
+                          1,
+                          Qt.SolidLine,
+                          Qt.SquareCap,
+                          Qt.BevelJoin)
+            skyBrush = QBrush(skyNow)
+            groundPen = QPen(groundNow,
+                             1,
+                             Qt.SolidLine,
+                             Qt.SquareCap,
+                             Qt.BevelJoin)
+            groundBrush = QBrush(groundNow)
+
+            scene.setSceneRect(0.0, 0.0, vSize, vSize)
+            if (pan != self.lastPan) or (height != self.lastHeight):
+                scene.clear()
+                scene.addRect(0.0, 0.0, vSize, horizon, skyPen, skyBrush)
+                scene.addEllipse(pan,
+                                 height,
+                                 objectDiam,
+                                 objectDiam,
+                                 objectPen,
+                                 objectBrush)
+                scene.addRect(0.0,
+                              horizon,
+                              vSize,
+                              vSize - horizon,
+                              groundPen,
+                              groundBrush)
+                self.lastPan = pan
+                self.lastHeight = height
+                view.show()
+
     def tick(self):
         # Set the current time in the math library
         setSystemTime()
@@ -472,6 +794,9 @@ class QtSunsetter(QWidget):
         self.recolorRunEditBackground(QTS_SUNRISE)
         # Re-color the background of the run at sunset control
         self.recolorRunEditBackground(QTS_SUNSET)
+
+        # self.drawIcon()
+        self.drawIconByAngle()
 
     def signLatLonDirection(self, location, direction):
         # If the direction is South or West, the position is negative
