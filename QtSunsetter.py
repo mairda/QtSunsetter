@@ -463,18 +463,29 @@ class QtSunsetter(QWidget):
 
             # Get the direction to the Sun (are we in the Southern or Northern
             # hemisphere). True is Northern, False is Southern
-            skyView = (getLatitude() >= 0.0)
-            # skyView = True
+            skyViewSouth = (getLatitude() >= 0.0)
+            # skyViewSouth = False
 
-            # Start position is at maxY,-1, get the angle
-            startAngle = atan2(-1, maxXY)
-            sweepAngle = pi + 2.0 * abs(startAngle)
+            # Sweep between points one pixel below the left and right
+            # horizon limits
+            hLimit = xCenter - objectRad
+            leftStart = atan2(0 - hLimit, -1)
+            rightStart = atan2(hLimit, -1)
+            if leftStart > rightStart:
+                sweepAngle = leftStart - rightStart
+            else:
+                sweepAngle = rightStart - leftStart
+
+            # The excess on each side is half of the sweep angle minus pi (180
+            # degrees)
+            # startAngle = (sweepAngle - pi) / 2.0
+
+            # print("{}, {}, {} ... {}".format(sweepAngle, leftStart, rightStart, startAngle))
 
             # Ranges from 0.0 to 1.0, used to compute a location for
             # the sky object. Get other ranges for the same
             t = getTimeNowFractionOfLightPeriod()
             # t = 0.9945505
-            # t = 0.9
             tRev = 1.0 - t
             if t < 0.5:
                 tBounce = 2.0 * t
@@ -483,44 +494,41 @@ class QtSunsetter(QWidget):
             tRevBounce = 1.0 - tBounce
             # print("{} / {} / {} / {}".format(t, tRev, tBounce, tRevBounce))
 
-            # Caculate the current angle based on a South or North view of
+            # Calculate the current angle based on a South or North view of
             # the sun
-            if skyView is True:
-                startAngle = atan2(-1, 0.0)
-                angle = (tRev * sweepAngle) - startAngle - (pi / 2.0)
+            if skyViewSouth is True:
+                angle = (tRev * sweepAngle)
             else:
-                angle = (t * sweepAngle) + startAngle
+                angle = (t * sweepAngle)
 
             # Calculate the "hypotenuse length of the line to the object
             hyp = round(vHalfSize + (tBounce * skyExtra), 2)
 
             # Calculate a horizontal offset for margin, it is negative on
             # the right, zero in the center and positive on the left
-            if skyView is True:
-                xOffset = tRevBounce * 16.0 * margin
-                if t >= 0.5:
-                    xOffset = 0 - xOffset
-            else:
-                xOffset = tRevBounce * 4.0 * margin
-                if t < 0.5:
-                    xOffset = 0 - xOffset
+            xOffset = tRevBounce * 22.0
+            if t > 0.5:
+                xOffset = 0 - xOffset
+
+            # North view goes in the opposite direction from the South view
+            if skyViewSouth is False:
+                xOffset = 0 - xOffset
+
+            # Plus a little static offset
+            xOffset += 1.0
 
             # Calculate a vertical offset for top margin, it is zero at
             # the horizon and positive at the top of the sky
             yOffset = tBounce * 2.5 * margin
 
             # Now get x and y
-            xObject = round(xCenter + (cos(angle) * hyp)
-                            - (tRev * objectDiam) + xOffset, 2)
+            xObject = round(xCenter - objectRad + (cos(angle) * hyp)
+                            + xOffset, 2)
             yObject = round(yCenter - (sin(angle) * hyp)
                             + yOffset, 2)
             # print("{}, {}". format(xCenter, yCenter))
             # print("{} : {} : {} : {}".format(degrees(angle), hyp, xOffset, tRev))
             # print("{}, {}". format(xObject, yObject))
-
-            # Convert for a sun view to the North or South
-            # if skyView is True:
-            #    xObject = 128.0 - xObject
 
             # Compute colors based on fraction of day/night time
             groundColor = QColor(0x7C, 0xFC, 0)
