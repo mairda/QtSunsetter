@@ -42,6 +42,7 @@ class SunsetterConfig:
         self.correctForSysTZ = None
         self.sunriseRun = None
         self.sunsetRun = None
+        self.runLastEventAtLaunch = False
 
     def getLatitude(self):
         return self.latitude
@@ -72,6 +73,9 @@ class SunsetterConfig:
                            self.configSrcFrom)
 
         return None
+
+    def getRunLastEventAtLaunch(self):
+        return self.runLastEventAtLaunch
 
     # Return True if fileName argument is an existing, executable file
     # else return False
@@ -140,6 +144,9 @@ class SunsetterConfig:
                            "executable file as {} run "
                            "program {}".format(eventName, newFileName),
                            self.configSrcFrom)
+
+    def setRunLastEventAtLaunch(self, enabled):
+        self.runLastEventAtLaunch = enabled
 
     def getConfigFileDir(self):
         # Get the home directory path
@@ -253,6 +260,18 @@ class SunsetterConfig:
 
         return result
 
+    def runLastEventAtLaunchConfig(self, cfgLine):
+        result = False
+
+        m = re.search('^runlasteventatlaunch$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            self.setRunLastEventAtLaunch(True)
+            result = True
+
+        return result
+
     def processConfigLine(self, theLine):
         # Comments begin with a # character, remove them
         m = re.search('^(.*)\\s*\\#.*$', theLine)
@@ -278,6 +297,10 @@ class SunsetterConfig:
 
         # If we have a program to run on sunrise or sunset
         if self.solarCrossingRunConfig(theLine) is True:
+            return
+
+        # If we have the setting to enable run last crossing event on launch
+        if self.runLastEventAtLaunchConfig(theLine) is True:
             return
 
         warningMessage("Unprocessed config file line: {}".format(theLine),
@@ -429,10 +452,10 @@ class SunsetterConfig:
 
         return outLine
 
-    def processOutputConfigLine(self, outStream, theLine):
+    def processOutputConfigLine(self, outStream, theLine, doSave=True):
         global QTS_SUNRISE, QTS_SUNSET
 
-        if (outStream is None) or (theLine is None):
+        if (outStream is None) or (theLine is None) or (doSave is False):
             return
 
         outLine = theLine
@@ -499,6 +522,7 @@ class SunsetterConfig:
         self.savedCorrectForSysTZ = False
         self.savedRiseRun = False
         self.savedSetRun = False
+        self.savedRunLastEventAtLaunch = False
 
         # Get the config and temp filenames
         cfgFilename = self.getConfigFilename()
@@ -538,21 +562,35 @@ class SunsetterConfig:
                                    "configuration: {}".format(tmpFilename),
                                    self.configSrcFrom)
 
-                # Fixup anything we didn't save in the temp file
-                if not self.savedLat:
-                    self.processOutputConfigLine(outStream, "latitude=0")
-                if not self.savedLon:
-                    self.processOutputConfigLine(outStream, "longitude=0")
-                if not self.savedTZ:
-                    self.processOutputConfigLine(outStream, "timezone=0")
-                if (not self.savedCorrectForSysTZ) and\
-                        (self.getCorrectForSysTZ() is True):
-                    self.processOutputConfigLine(outStream,
-                                                 "CorrectForSystemTimezone")
-                if not self.savedRiseRun:
-                    self.processOutputConfigLine(outStream, "sunriserun=abc")
-                if not self.savedSetRun:
-                    self.processOutputConfigLine(outStream, "sunsetrun=abc")
+                # Fixup anything we didn't save in the temp file they will
+                # only by written based on the third argument being True
+                self.processOutputConfigLine(outStream,
+                                             "latitude=0",
+                                             not self.savedLat)
+                self.processOutputConfigLine(outStream,
+                                             "longitude=0",
+                                             not self.savedLon)
+                self.processOutputConfigLine(outStream,
+                                             "timezone=0",
+                                             not self.savedTZ)
+
+                tzCorrect = (not self.savedCorrectForSysTZ) and\
+                            (self.getCorrectForSysTZ() is True)
+                self.processOutputConfigLine(outStream,
+                                             "CorrectForSystemTimezone",
+                                             tzCorrect)
+                self.processOutputConfigLine(outStream,
+                                             "sunriserun=abc",
+                                             not self.savedRiseRun)
+                self.processOutputConfigLine(outStream,
+                                             "sunsetrun=abc",
+                                             not self.savedSetRun)
+
+                launchRun = (self.savedRunLastEventAtLaunch is False) and\
+                            (self.runLastEventAtLaunch is True)
+                self.processOutputConfigLine(outStream,
+                                             "runlasteventatlaunch",
+                                             launchRun)
 
                 # Rename the temp file as the config file
                 tmpFile.rename(cfgFilename)

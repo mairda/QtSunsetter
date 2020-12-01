@@ -43,8 +43,8 @@ import sys
 import os
 import subprocess
 
-from math import sin, cos, tan, asin, acos, atan2, degrees, radians, pi, pow
-from math import sqrt
+from math import sin, cos, atan2, pow, sqrt
+# from math import tan, asin, acos, radians, pi, degrees,
 
 from PySide2.QtWidgets import QApplication, QWidget, QPushButton, QDialog
 from PySide2.QtWidgets import QLineEdit, QLabel, QComboBox, QCheckBox
@@ -54,7 +54,8 @@ from PySide2.QtCore import Qt
 from PySide2.QtCore import QFile, QPoint, QObject, QTimer, SIGNAL, SLOT
 from PySide2.QtCore import QDir, QFileInfo
 from PySide2.QtGui import QColor, QPen
-from PySide2.QtGui import QPalette, QPainter, QBrush, QIcon
+from PySide2.QtGui import QPalette, QBrush
+# from PySide2.QtGui import QPainter, QIcon
 from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsDialog
@@ -95,7 +96,7 @@ class QtSunsetter(QWidget):
 
         # Use these to force stepping time by forceAmount on the timer tick
         # Set forceTime to True and adjust forceAmount to suit
-        self.forceTime = True
+        self.forceTime = False
         self.forceAmount = 0.02
 
         self.savedT = 0.0
@@ -107,6 +108,11 @@ class QtSunsetter(QWidget):
         self.loadConfig()
         self.timer = QTimer(self)
         self.load_ui()
+        if self.getRunLastEventAtLaunch():
+            if itsDaytime():
+                self.sunriseReached()
+            else:
+                self.sunsetReached()
 
     def load_ui(self):
         loader = QUiLoader()
@@ -128,9 +134,11 @@ class QtSunsetter(QWidget):
         # Show any saved location
         self.showLocation()
 
-        # Show any saved sunset/sunrise programs
+        # Show any saved sunset/sunrise programs and whether we pre-run the
+        # last passed one
         self.showSolarCrossingProgramText(self.initRiseRun, QTS_SUNRISE)
         self.showSolarCrossingProgramText(self.initSetRun, QTS_SUNSET)
+        self.showRunLastEventAtLaunch(self.initRunLastEventAtLaunch)
 
         # Connect the settings button to our slot
         btnSetLocation = self.findChild(QPushButton, "btnSetLocation")
@@ -271,6 +279,23 @@ class QtSunsetter(QWidget):
             return crossingCtrl.text()
 
         return None
+
+    # Get whether we run the last past crossing program at launch
+    def getRunLastEventAtLaunchControl(self):
+        return self.findChild(QCheckBox, "runLastEventAtLaunch")
+
+    # Set/Clear the run last past event at launch checkbox
+    def showRunLastEventAtLaunch(self, newVal):
+        runLastEventAtLaunchCtrl = self.getRunLastEventAtLaunchControl()
+        if runLastEventAtLaunchCtrl is not None:
+            runLastEventAtLaunchCtrl.setChecked(newVal)
+
+    def getRunLastEventAtLaunch(self):
+        runLastEventAtLaunchCtrl = self.getRunLastEventAtLaunchControl()
+        if runLastEventAtLaunchCtrl is not None:
+            return runLastEventAtLaunchCtrl.isChecked()
+
+        return False
 
     # Return True if fileName argument is an existing, executable file
     # else return False
@@ -1093,6 +1118,7 @@ class QtSunsetter(QWidget):
     def presetConfig(self):
         self.initRiseRun = None
         self.initSetRun = None
+        self.initRunLastEventAtLaunch = False
 
     def loadConfig(self):
         config = SunsetterConfig()
@@ -1116,6 +1142,8 @@ class QtSunsetter(QWidget):
             self.initSetRun = config.getSolarCrossingRun(QTS_SUNSET)
             self.showSolarCrossingProgramText(self.initSetRun,
                                               QTS_SUNSET)
+            self.initRunLastEventAtLaunch = config.getRunLastEventAtLaunch()
+            self.showRunLastEventAtLaunch(nVal)
             # debugMessage("sunset program = {}".format(self.initSetRun))
 
     # Save the config but only replace supported configuration items while
@@ -1130,6 +1158,7 @@ class QtSunsetter(QWidget):
         config.setSolarCrossingRun(crTxt, QTS_SUNRISE)
         crTxt = self.getSolarCrossingProgramText(QTS_SUNSET)
         config.setSolarCrossingRun(crTxt, QTS_SUNSET)
+        config.setRunLastEventAtLaunch(self.getRunLastEventAtLaunch())
         config.saveConfig()
 
 
