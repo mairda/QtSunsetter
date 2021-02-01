@@ -2,8 +2,9 @@
 #
 # Manage the switching of QtSunsetter between day and night targets based on
 # the sunrise/sunset times without user intervention. This is based on
-# spreadsheet based exaples published by the NOAA organization at the following
-# location: https://www.esrl.noaa.gov/gmd/grad/solcalc/calcdetails.html
+# spreadsheet based examples published by the NOAA organization at the
+# following location:
+#     https://www.esrl.noaa.gov/gmd/grad/solcalc/calcdetails.html
 #
 # Version: 1.0
 # Copyright (C) 2020/09/21 David A. Mair

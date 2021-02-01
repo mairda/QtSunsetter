@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
 #
-# PySide2 based Qt program providing daily sunset/sunrise time calculation abd
+# PySide2 based Qt program providing daily sunset/sunrise time calculation and
 # the ability to run a program of choice at rise and/or set
 #
 # Version: 1.0
@@ -46,20 +46,24 @@ import subprocess
 from math import sin, cos, atan2, pow, sqrt
 # from math import tan, asin, acos, radians, pi, degrees,
 
+from threading import enumerate, main_thread, Thread
+from time import sleep
+
 from PySide2.QtWidgets import QApplication, QWidget, QPushButton, QDialog
 from PySide2.QtWidgets import QLineEdit, QLabel, QComboBox, QCheckBox
 from PySide2.QtWidgets import QSpinBox, QMessageBox, QFileDialog
 from PySide2.QtWidgets import QGraphicsView, QGraphicsScene
 from PySide2.QtCore import Qt
 from PySide2.QtCore import QFile, QPoint, QObject, QTimer, SIGNAL, SLOT
-from PySide2.QtCore import QDir, QFileInfo
+from PySide2.QtCore import QDir, QFileInfo, QCoreApplication
 from PySide2.QtGui import QColor, QPen
 from PySide2.QtGui import QPalette, QBrush
 # from PySide2.QtGui import QPainter, QIcon
 from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
-from QtSsLocationDialog import Ui_QtSsDialog
-# from QtSsLocation import Ui_QtSsDialog
+from QtSsLocationDialog import Ui_QtSsLocationDialog
+# from QtSsLocationDialog import Ui_QtSsDialog
+#  from QtSsLocation import Ui_QtSsDialog
 from QtSsTODMath import getTimeNowWithCorrection, getSunriseTime, getSunsetTime
 from QtSsTODMath import itsDaytime, itsNighttime
 from QtSsTODMath import getCorrectForSysTZ, setCorrectForSysTZ
@@ -79,6 +83,13 @@ from QtSsDebug import disableDebug, enableDebug, debugIsEnabled, debugMessage
 
 
 class QtSunsetter(QWidget):
+    # Class variables for child threads on rise/set events
+    sunriseChildName = "QtS Rise"
+    sunsetChildName = "QtS Set"
+    childThreadAny = 0
+    childThreadSunrise = 1
+    childThreadSunset = 2
+
     def __init__(self):
         super(QtSunsetter, self).__init__()
 
@@ -110,9 +121,9 @@ class QtSunsetter(QWidget):
         self.load_ui()
         if self.getRunLastEventAtLaunch():
             if itsDaytime():
-                self.sunriseReached()
+                self.reachedSunrise()
             else:
-                self.sunsetReached()
+                self.reachedSunset()
 
     def load_ui(self):
         loader = QUiLoader()
@@ -166,16 +177,19 @@ class QtSunsetter(QWidget):
                             self, SLOT('chooseSetRun()'))
 
         # Start a timer to update the time, it doesn't need to be per-second
+        # in normal use
         self.timer.timeout.connect(self.tick)
-        if debugIsEnabled():
-            # If debugging, watch the clocks tick
-            self.timer.start(1000)
-        else:
-            # Not debugging, just update them every minute
+        if not debugIsEnabled():
+            # Not debugging, and not forcing time progression, just update
+            # every minute
             if self.forceTime is False:
                 self.timer.start(60000)
+            # Forcing time progress, use a one second timer
             else:
                 self.timer.start(1000)
+        # Debugging, use a one second timer but don't force sky object progress
+        else:
+            self.timer.start(1000)
 
     # Given either the app object or a parent window position this window
     # with a little randomness when based on the screen
@@ -239,6 +253,17 @@ class QtSunsetter(QWidget):
 
             debugMessage("New position: {}, {}".format(newPos.x(), newPos.y()))
             self.move(newPos.x(), newPos.y())
+
+    # Manage close to delay it while child threads are running
+    def closeEvent(self, event):
+        self.listChildren()
+        while self.haveRunningThreadOfType(self.childThreadSunrise):
+            print("Waiting for a sunrise program to finish")
+            sleep(15)
+        while self.haveRunningThreadOfType(self.childThreadSunset):
+            print("Waiting for a sunset program to finish")
+            sleep(15)
+        event.accept()
 
     def showLocation(self):
         # Get our location control
@@ -324,13 +349,75 @@ class QtSunsetter(QWidget):
                     uText = str(aLine, "utf-8")
                     print("<: {}".format(uText))
 
-    def sunriseReached(self):
-        self.lastY = 128.0
-        self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNRISE))
+    # Threaded versions of the exec'ing of sunrise/sunset programs
 
-    def sunsetReached(self):
+    def reachedSunriseThreadEntry(self):
+        print("Entered threaded sunrise reached")
+        self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNRISE))
         self.lastY = 128.0
+        print("Exiting threaded sunrise reached")
+
+    def reachedSunsetThreadEntry(self):
+        print("Entered threaded sunset reached")
         self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNSET))
+        self.lastY = 128.0
+        print("Exiting threaded sunset reached")
+
+    def listChildren(self):
+        for th in enumerate():
+            if th is main_thread():
+                continue
+            print("We have a thread named: {}".format(th.getName()))
+
+    def threadTypeIs(self, thrdObj, thrdType=childThreadAny):
+        if thrdObj is not None:
+            thrdName = thrdObj.getName()
+            isRise = (thrdName == self.sunriseChildName)
+            isSet = (thrdName == self.sunsetChildName)
+            if (thrdType == self.childThreadSunrise) and isRise:
+                return True
+            if (thrdType == self.childThreadSunset) and isSet:
+                return True
+            if (thrdType == self.childThreadAny) and (isRise or isSet):
+                return True
+
+        return False
+
+    def haveRunningThreadOfType(self, thrdType=childThreadAny):
+        # Look for instances of the child thread
+        hasChildren = False
+        for th in enumerate():
+            if th is main_thread():
+                continue
+            if self.threadTypeIs(th, thrdType) is True:
+                hasChildren = True
+                break
+
+        return hasChildren
+
+    def launchThreadOfType(self, thrdType):
+        # If there is no thread already running
+        if self.haveRunningThreadOfType(self) is False:
+            child = None
+            if thrdType == self.childThreadSunrise:
+                child = Thread(target=self.reachedSunriseThreadEntry,
+                               name=self.sunriseChildName)
+            elif thrdType == self.childThreadSunset:
+                child = Thread(target=self.reachedSunsetThreadEntry,
+                               name=self.sunsetChildName)
+
+            if child is not None:
+                child.start()
+
+    def reachedSunrise(self):
+        # self.lastY = 128.0
+        # self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNRISE))
+        self.launchThreadOfType(self.childThreadSunrise)
+
+    def reachedSunset(self):
+        # self.lastY = 128.0
+        # self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNSET))
+        self.launchThreadOfType(self.childThreadSunset)
 
     # Set a supplied time or the current time in the control
     def showTime(self, newTime):
@@ -620,7 +707,7 @@ class QtSunsetter(QWidget):
             # Calculate a vertical offset for top margin, it is zero at
             # the horizon and positive at the top of the sky
             # yOffset = tBounce * 2.5 * margin
-            yOffset = tBounce * 16.0
+            yOffset = tBounce * 8.0
 
             # Now get x and y
             xObject = self.hypotenuseX(hyp,
@@ -885,7 +972,7 @@ class QtSunsetter(QWidget):
             if self.nextCrossing is None:
                 self.nextCrossing = "sunset"
             elif self.nextCrossing == "sunrise":
-                self.sunriseReached()
+                self.reachedSunrise()
 
                 # Now we are pending sunset
                 self.nextCrossing = "sunset"
@@ -893,7 +980,7 @@ class QtSunsetter(QWidget):
             if self.nextCrossing is None:
                 self.nextCrossing = "sunrise"
             elif self.nextCrossing == "sunset":
-                self.sunsetReached()
+                self.reachedSunset()
 
                 # Now we are pending sunrise
                 self.nextCrossing = "sunrise"
@@ -939,7 +1026,7 @@ class QtSunsetter(QWidget):
     def locationClicked(self):
         # Use a dialog to get the settings
         dlg = QDialog(self)
-        ui = Ui_QtSsDialog()
+        ui = Ui_QtSsLocationDialog()
         ui.setupUi(dlg)
         ctrlLatitude = dlg.findChild(QLineEdit, "latitude")
         ctrlLatDir = dlg.findChild(QComboBox, "latDirection")
@@ -951,6 +1038,7 @@ class QtSunsetter(QWidget):
                 (ctrlLongitude is not None) and (ctrlLonDir is not None) and\
                 (ctrlTZ is not None) and (ctrlCorrectTZ is not None):
             debugMessage("Found latitude/longitude controls for init")
+
             lat = getLatitude()
             latDir = self.getLatitudeDirection(lat)
             lat = abs(lat)
@@ -1169,6 +1257,7 @@ disableWarnings()
 # enableWarnings()
 
 if __name__ == "__main__":
+    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
     app = QApplication([])
     widget = QtSunsetter()
     widget.position_ui()

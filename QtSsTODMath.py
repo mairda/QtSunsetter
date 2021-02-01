@@ -199,7 +199,7 @@ def itsNighttime():
     return not itsDaytime()
 
 
-# Return trus if it's after sunset but before midnight
+# Returns true if it's after sunset but before midnight
 # Returns a bool
 def itsAfterSunsetToday():
     ssDelta = getSunsetFractionOfDay()

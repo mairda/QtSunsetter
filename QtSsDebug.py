@@ -20,11 +20,14 @@
 # along with QtSunsetter.  If not, see <http://www.gnu.org/licenses/>.
 
 
+from colorama import init, Fore, Back, Style
+
+
 def debugMessage(txt):
     global doDebug
 
     if doDebug is True:
-        print(txt)
+        print(Fore.CYAN + txt)
 
 
 def warningMessage(msgTxt, srcFrom=None):
@@ -32,9 +35,9 @@ def warningMessage(msgTxt, srcFrom=None):
 
     if doWarnings is True:
         if srcFrom is not None:
-            print("Sunsetter {}: {}".format(srcFrom, msgTxt))
+            print(Fore.RED + "Sunsetter {}: {}".format(srcFrom, msgTxt))
         else:
-            print(msgTxt)
+            print(Fore.RED + msgTxt)
 
 
 def debugIsEnabled():
@@ -74,6 +77,8 @@ def enableWarnings():
 
 doDebug = False
 doWarnings = False
+
+init(autoreset=True)
 
 # if __name__ == "__main__":
 #     pass

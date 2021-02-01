@@ -36,6 +36,7 @@ class SunsetterConfig:
         else:
             self.fileName = cfgFileName
 
+        # Unititialized state
         self.latitude = None
         self.longitude = None
         self.homeTZ = None
@@ -183,13 +184,13 @@ class SunsetterConfig:
         m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                       cfgLine,
                       flags=re.IGNORECASE)
-        if m is None:
+        if m is not None:
+            isLat = True
+        else:
             m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                           cfgLine,
                           flags=re.IGNORECASE)
             isLat = False
-        else:
-            isLat = True
 
         if m is not None:
             val = m.group(1)
@@ -242,14 +243,14 @@ class SunsetterConfig:
 
         # Apply the sunrise regexp
         m = re.search('^sunriserun=(.*)$', cfgLine, flags=re.IGNORECASE)
-        if m is None:
+        if m is not None:
+            # Sunrise regexp matched
+            crossing = QTS_SUNRISE
+        else:
             # No match, apply the sunset regexp
             m = re.search('^sunsetrun=(.*)$', cfgLine, flags=re.IGNORECASE)
             if m is not None:
                 crossing = QTS_SUNSET
-        else:
-            # Sunrise regexp matched
-            crossing = QTS_SUNRISE
 
         # If we matched either regexp
         if m is not None:
@@ -327,6 +328,7 @@ class SunsetterConfig:
                 debugMessage("Config file NOT found")
                 self.setCorrectForSysTZ(False)
 
+        # We are only successful if we have a latitude, longitude and timezone
         result = (self.latitude is not None)\
             and (self.longitude is not None)\
             and (self.homeTZ is not None)
@@ -358,8 +360,14 @@ class SunsetterConfig:
         m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                       cfgLine,
                       flags=re.IGNORECASE)
-        if m is None:
-            # Failed, match the longitude regexp with the line
+        if m is not None:
+            # Matched latitude
+            isLat = True
+            coordName = "latitude"
+            posn = self.getLatitude()
+            saved = self.savedLat
+        else:
+            # Latitude failed, match the longitude regexp with the line
             m = re.search('^longitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
                           cfgLine,
                           flags=re.IGNORECASE)
@@ -369,12 +377,6 @@ class SunsetterConfig:
                 coordName = "longitude"
                 posn = self.getLongitude()
                 saved = self.savedLon
-        else:
-            # Matched latitude
-            isLat = True
-            coordName = "latitude"
-            posn = self.getLatitude()
-            saved = self.savedLat
 
         # If we have a latitude or longitude line
         if m is not None:
@@ -418,7 +420,12 @@ class SunsetterConfig:
         m = re.search('^sunriserun=(.*)$',
                       cfgLine,
                       flags=re.IGNORECASE)
-        if m is None:
+        if m is not None:
+            # Sunrise matched
+            saved = self.savedRiseRun
+            cfgName = "sunriserun"
+            crossing = QTS_SUNRISE
+        else:
             # Sunrise failed, try the sunset regexp against the line
             m = re.search('^sunsetrun=(.+)$',
                           cfgLine,
@@ -428,11 +435,6 @@ class SunsetterConfig:
                 saved = self.savedSetRun
                 cfgName = "sunsetrun"
                 crossing = QTS_SUNSET
-        else:
-            # Sunrise matched
-            saved = self.savedRiseRun
-            cfgName = "sunriserun"
-            crossing = QTS_SUNRISE
 
         # If either regexp matched
         if m is not None:
@@ -563,7 +565,7 @@ class SunsetterConfig:
                                    self.configSrcFrom)
 
                 # Fixup anything we didn't save in the temp file they will
-                # only by written based on the third argument being True
+                # only be written based on the third argument being True
                 self.processOutputConfigLine(outStream,
                                              "latitude=0",
                                              not self.savedLat)
