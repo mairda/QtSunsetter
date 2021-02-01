@@ -18,7 +18,7 @@ Required libraries include:
 
 Some of those will be installed by default with Python 3.8+
 
-The goal in writing this was for use of a live webcam frame capture application that requires manual modification of brightness/contrast type controls where day and night required different assumptions. A console version is used at present and this is a nearly complete Qt UI based version.
+The goal in writing this was for use of a live webcam frame capture application that requires manual modification of brightness/contrast type controls where day and night required different assumptions. This Qt UI based version replaced a console based version.
 
 The solar time code is based on spreadsheet based examples published by the NOAA organization at: https://www.esrl.noaa.gov/gmd/grad/solcalc/calcdetails.html
 

@@ -723,7 +723,7 @@ class QtSunsetter(QWidget):
             # print("{}/{} ... {}".format(yObject, self.lastYObject, self.yMaxObject))
             # print("{}, {}". format(xCenter, yCenter))
             # print("{} : {} : {} : {}".format(degrees(angle), hyp, xOffset, tRev))
-            print("pos {}, {}". format(xObject, yObject))
+            # print("pos {}, {}". format(xObject, yObject))
 
             # Compute colors based on fraction of day/night time
             groundColor = QColor(0x7C, 0xFC, 0)
