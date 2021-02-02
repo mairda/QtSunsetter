@@ -178,7 +178,7 @@ class QtSunsetter(QWidget):
                             self, SLOT('chooseSetRun()'))
 
         # Create an application icon and not the file as a name
-        self.drawMyIcon()
+        self.createAppIcon()
         self.setWindowIconText("QtSunsetter")
         self.setWindowTitle("QtSunsetter")
 
@@ -197,8 +197,27 @@ class QtSunsetter(QWidget):
         else:
             self.timer.start(1000)
 
+    def dumpAppIconSizes(self, atContext):
+        if debugIsEnabled():
+            # Get the current window icon
+            appIcon = self.windowIcon()
+            lSizes = appIcon.availableSizes()
+            count = 0
+            for size in lSizes:
+                # Assuming a QSize
+                msg = "At {}, an app icon exists with size ".format(atContext)
+                msg += "{}, {}".format(size.width(), size.height())
+                debugMessage(msg)
+                count += 1
+            msg = "At {}, icon size list has length {}".format(atContext, \
+                                                               count)
+            debugMessage(msg)
+
     # Draw an icon for the application, for now make it unchanging
-    def drawMyIcon(self):
+    def createAppIcon(self):
+        # This will only output if debug is enabled
+        self.dumpAppIconSizes("launch")
+
         # Use a relatively big image it will scale
         image = QImage(128, 128, QImage.Format_RGB32)
 
@@ -253,6 +272,9 @@ class QtSunsetter(QWidget):
 
         # Use the icon as the window icon
         self.setWindowIcon(myIcon)
+
+        # This will only output if debug is enabled
+        self.dumpAppIconSizes("set icon")
 
         return None
 
