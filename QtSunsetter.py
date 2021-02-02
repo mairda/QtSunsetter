@@ -224,11 +224,8 @@ class QtSunsetter(QWidget):
         # Required colors for sky, ground and sky object
         # ...for now don't make these variable and only draw the sun rising
         # (viewing South) or setting (viewing North)
-        groundColor = QColor(0x7C, 0xFC, 0)
-        # if itsDaytime():
-        skyColor = QColor(0x87, 0xCE, 0xFA)
-        #else:
-        #    skyColor = QColor(0x2A, 0x2A, 0x35)
+        groundColor = self.getGroundColor(timeFrac = -1.0)
+        skyColor = self.getSkyColor(assumeDaytime=True, timeFrac = -1.0)
         objectColor = Qt.yellow
 
         # More sky than ground, set the sizes
@@ -697,6 +694,47 @@ class QtSunsetter(QWidget):
 
         return yNew
 
+    def getTimeBounce(self, fromTimeFrac=0.0):
+        if fromTimeFrac < 0.5:
+            tBounce = 2.0 * fromTimeFrac
+        else:
+            tBounce = 2.0 * (1.0 - fromTimeFrac)
+
+        return tBounce
+
+    def getSkyColor(self, assumeDaytime=False, timeFrac=0.0):
+        tBounce = self.getTimeBounce(timeFrac)
+        tRevBounce = 1.0 - tBounce
+
+        if (assumeDaytime is False) and itsNighttime():
+            defaultSky = QColor(0x2A, 0x2A, 0x35)
+            if timeFrac >= 0.0:
+                skyNow = defaultSky.lighter(100.0 + (75.0 * tRevBounce))
+        else:
+            defaultSky = QColor(0x87, 0xCE, 0xFA)
+            if timeFrac >= 0.0:
+                skyScale = pow(2.0, tRevBounce) - 1.0
+                skyNow = defaultSky.darker(100.0 + (150.0 * skyScale))
+
+        if timeFrac < 0.0:
+            skyNow = defaultSky
+
+        return skyNow
+
+    def getGroundColor(self, timeFrac=0.0):
+        defaultGround = QColor(0x7C, 0xFC, 0)
+        tBounce = self.getTimeBounce(timeFrac)
+        tRevBounce = 1.0 - tBounce
+        if timeFrac >= 0.0:
+            if itsDaytime():
+                groundNow = defaultGround.darker(100.0 + (200.0 * tRevBounce))
+            else:
+                groundNow = groundColor.darker(300.0 + (250.0 * tBounce))
+        else:
+            groundNow = defaultGround
+
+        return groundNow
+
     def drawIconByAngle(self):
         view = self.findChild(QGraphicsView, "dayIcon")
         if view is not None:
@@ -755,10 +793,7 @@ class QtSunsetter(QWidget):
                 self.savedT = t
             # t = 0.9945505
             tRev = 1.0 - t
-            if t < 0.5:
-                tBounce = 2.0 * t
-            else:
-                tBounce = 2.0 * (1.0 - t)
+            tBounce = self.getTimeBounce(t)
             tRevBounce = 1.0 - tBounce
             # print("t {} / {} / {} / {}".format(t, tRev, tBounce, tRevBounce))
 
@@ -812,35 +847,30 @@ class QtSunsetter(QWidget):
             # print("{} : {} : {} : {}".format(degrees(angle), hyp, xOffset, tRev))
             # print("pos {}, {}". format(xObject, yObject))
 
-            # Compute colors based on fraction of day/night time
-            groundColor = QColor(0x7C, 0xFC, 0)
-            if itsDaytime():
-                # skyColor = QColor(0x87, 0xCE, 0xEB)
-                skyColor = QColor(0x87, 0xCE, 0xFA)
-                # skyNow = skyColor.darker(100.0 + (150.0 * tRevBounce))
-                # Use a more rapid rate of change closer to the crossing
-                skyScale = pow(2.0, tRevBounce) - 1.0
-                skyNow = skyColor.darker(100.0 + (150.0 * skyScale))
-                groundNow = groundColor.darker(100.0 + (200.0 * tRevBounce))
-                objectPen = QPen(Qt.yellow,
-                                 1,
-                                 Qt.SolidLine,
-                                 Qt.SquareCap,
-                                 Qt.BevelJoin)
-                objectBrush = QBrush(Qt.yellow)
-            else:
-                skyColor = QColor(0x2A, 0x2A, 0x35)
-                skyNow = skyColor.lighter(100.0 + (75.0 * tRevBounce))
-                groundNow = groundColor.darker(300.0 + (250.0 * tBounce))
-                objectPen = QPen(Qt.lightGray,
-                                 1,
-                                 Qt.SolidLine,
-                                 Qt.SquareCap,
-                                 Qt.BevelJoin)
-                objectBrush = QBrush(Qt.lightGray)
-
-            # Draw the objects if we have changed the object position
+            # Choose colors and draw the objects if we have changed the object
+            # position
             if (xObject != self.lastXObject) or (yObject != self.lastYObject):
+                # Compute colors based on fraction of day/night time
+                groundNow = self.getGroundColor(t)
+                skyNow = self.getSkyColor(False, t)
+                if itsDaytime():
+                    # Sun color
+                    objectPen = QPen(Qt.yellow,
+                                     1,
+                                     Qt.SolidLine,
+                                     Qt.SquareCap,
+                                     Qt.BevelJoin)
+                    objectBrush = QBrush(Qt.yellow)
+                else:
+                    # Moon color
+                    objectPen = QPen(Qt.lightGray,
+                                     1,
+                                     Qt.SolidLine,
+                                     Qt.SquareCap,
+                                     Qt.BevelJoin)
+                    objectBrush = QBrush(Qt.lightGray)
+
+
                 skyPen = QPen(skyNow,
                               1,
                               Qt.SolidLine,
