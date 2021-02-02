@@ -59,6 +59,7 @@ from PySide2.QtCore import QDir, QFileInfo, QCoreApplication
 from PySide2.QtGui import QColor, QPen
 from PySide2.QtGui import QPalette, QBrush
 # from PySide2.QtGui import QPainter, QIcon
+from PySide2.QtGui import QImage, QPainter, QPixmap, QIcon
 from PySide2.QtUiTools import QUiLoader
 from random import seed, randint
 from QtSsLocationDialog import Ui_QtSsLocationDialog
@@ -176,6 +177,9 @@ class QtSunsetter(QWidget):
             QObject.connect(btnChooseRun, SIGNAL('clicked()'),
                             self, SLOT('chooseSetRun()'))
 
+        # Create an application icon
+        self.drawMyIcon()
+
         # Start a timer to update the time, it doesn't need to be per-second
         # in normal use
         self.timer.timeout.connect(self.tick)
@@ -190,6 +194,65 @@ class QtSunsetter(QWidget):
         # Debugging, use a one second timer but don't force sky object progress
         else:
             self.timer.start(1000)
+
+    # Draw an icon for the application, for now make it unchanging
+    def drawMyIcon(self):
+        # Use a relatively big image it will scale
+        image = QImage(128, 128, QImage.Format_RGB32)
+
+        # Required colors for sky, ground and sky object
+        # ...for now don't make these variable and only draw the sun rising
+        # (viewing South) or setting (viewing North)
+        groundColor = QColor(0x7C, 0xFC, 0)
+        # if itsDaytime():
+        skyColor = QColor(0x87, 0xCE, 0xFA)
+        #else:
+        #    skyColor = QColor(0x2A, 0x2A, 0x35)
+        objectColor = Qt.yellow
+
+        # More sky than ground, set the sizes
+        skyHeight = (image.height() * 85) / 128
+        groundHeight = image.height() - skyHeight
+
+        # Start painting onto the image
+        p = QPainter()
+        p.begin(image)
+
+        # Draw the sky
+        p.fillRect(0, 0, image.width(), skyHeight, skyColor)
+
+        # Pen/Brush for the object in the sky
+        objectPen = QPen(Qt.yellow,
+                         1,
+                         Qt.SolidLine,
+                         Qt.SquareCap,
+                         Qt.BevelJoin)
+        objectBrush = QBrush(Qt.yellow)
+        p.setPen(objectPen)
+        p.setBrush(objectBrush)
+
+        # Size and center of the object in the sky
+        objectRad = 8.0
+        objectDiam = 2.0 * objectRad
+        cntrPnt = QPoint(1 + objectDiam, skyHeight)
+
+        # Draw the object in the sky
+        p.drawEllipse(cntrPnt,
+                         objectDiam,
+                         objectDiam)
+
+        # Draw the ground
+        p.fillRect(0, skyHeight, image.width(), groundHeight, groundColor)
+        p.end()
+
+        # Get a pixmap from the image and use it to create an icon
+        myPixmap = QPixmap(image)
+        myIcon = QIcon(myPixmap)
+
+        # Use the icon as the window icon
+        self.setWindowIcon(myIcon)
+
+        return None
 
     # Given either the app object or a parent window position this window
     # with a little randomness when based on the screen
@@ -1253,8 +1316,8 @@ class QtSunsetter(QWidget):
 disableDebug()
 # enableDebug()
 
-disableWarnings()
-# enableWarnings()
+# disableWarnings()
+enableWarnings()
 
 if __name__ == "__main__":
     QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)

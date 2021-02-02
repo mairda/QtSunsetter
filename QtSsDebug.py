@@ -35,9 +35,16 @@ def warningMessage(msgTxt, srcFrom=None):
 
     if doWarnings is True:
         if srcFrom is not None:
-            print(Fore.RED + "Sunsetter {}: {}".format(srcFrom, msgTxt))
+            print(Fore.MAGENTA + "Sunsetter {}: {}".format(srcFrom, msgTxt))
         else:
-            print(Fore.RED + msgTxt)
+            print(Fore.MAGENTA + msgTxt)
+
+
+def errorMessage(msgTxt, srcFrom=None):
+    if srcFrom is not None:
+        print(Fore.RED + "Sunsetter {}: {}".format(srcFrom, msgTxt))
+    else:
+        print(Fore.RED + msgTxt)
 
 
 def debugIsEnabled():

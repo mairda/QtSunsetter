@@ -197,6 +197,8 @@ class SunsetterConfig:
             try:
                 nVal = float(val)
             except Exception:
+                warningMessage("Invalid latitude/longitude value {}. "
+                               "Assuming 0.0".format(val))
                 nVal = 0.0
 
             if isLat is True:
@@ -218,6 +220,8 @@ class SunsetterConfig:
             try:
                 nTZ = float(tz)
             except Exception:
+                warningMessage("Invalid timezone value {}. "
+                               "Assuming 0.0".format(val))
                 nTZ = 0.0
             self.setHomeTZ(nTZ)
             debugMessage("TZ = {} => {}".format(tz, nTZ))
@@ -258,6 +262,9 @@ class SunsetterConfig:
             if self.isRunnableFile(fileName):
                 self.setSolarCrossingRun(fileName, crossing)
                 result = True
+            else:
+                warningMessage("Invalid sunset/sunrise "
+                               "file: {}".format(fileName))
 
         return result
 
@@ -576,7 +583,7 @@ class SunsetterConfig:
                                              "timezone=0",
                                              not self.savedTZ)
 
-                tzCorrect = (not self.savedCorrectForSysTZ) and\
+                tzCorrect = (self.savedCorrectForSysTZ is False) and\
                             (self.getCorrectForSysTZ() is True)
                 self.processOutputConfigLine(outStream,
                                              "CorrectForSystemTimezone",
