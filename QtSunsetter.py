@@ -177,8 +177,10 @@ class QtSunsetter(QWidget):
             QObject.connect(btnChooseRun, SIGNAL('clicked()'),
                             self, SLOT('chooseSetRun()'))
 
-        # Create an application icon
+        # Create an application icon and not the file as a name
         self.drawMyIcon()
+        self.setWindowIconText("QtSunsetter")
+        self.setWindowTitle("QtSunsetter")
 
         # Start a timer to update the time, it doesn't need to be per-second
         # in normal use
@@ -234,7 +236,7 @@ class QtSunsetter(QWidget):
         # Size and center of the object in the sky
         objectRad = 8.0
         objectDiam = 2.0 * objectRad
-        cntrPnt = QPoint(1 + objectDiam, skyHeight)
+        cntrPnt = QPoint(5 + objectDiam, skyHeight)
 
         # Draw the object in the sky
         p.drawEllipse(cntrPnt,
