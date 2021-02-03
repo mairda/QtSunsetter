@@ -436,16 +436,16 @@ class QtSunsetter(QWidget):
     # Threaded versions of the exec'ing of sunrise/sunset programs
 
     def reachedSunriseThreadEntry(self):
-        print("Entered threaded sunrise reached")
+        debugMessage("Entered threaded sunrise reached")
         self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNRISE))
         self.lastY = 128.0
-        print("Exiting threaded sunrise reached")
+        debugMessage("Exiting threaded sunrise reached")
 
     def reachedSunsetThreadEntry(self):
-        print("Entered threaded sunset reached")
+        debugMessage("Entered threaded sunset reached")
         self.runEventProgram(self.getSolarCrossingProgramText(QTS_SUNSET))
         self.lastY = 128.0
-        print("Exiting threaded sunset reached")
+        debugMessage("Exiting threaded sunset reached")
 
     def listChildren(self):
         for th in enumerate():
@@ -729,7 +729,7 @@ class QtSunsetter(QWidget):
             if itsDaytime():
                 groundNow = defaultGround.darker(100.0 + (200.0 * tRevBounce))
             else:
-                groundNow = groundColor.darker(300.0 + (250.0 * tBounce))
+                groundNow = defaultGround.darker(300.0 + (250.0 * tBounce))
         else:
             groundNow = defaultGround
 
@@ -903,6 +903,38 @@ class QtSunsetter(QWidget):
                 self.lastYObject = yObject
                 view.show()
 
+    # Returns true if we are passing sunrise/sunset
+    def setNextHorizonCrossingText(self):
+        crossed = False
+        if itsDaytime():
+            if self.nextCrossing is None:
+                self.nextCrossing = "sunset"
+            elif self.nextCrossing == "sunrise":
+                crossed = True
+
+                # Now we are pending sunset
+                self.nextCrossing = "sunset"
+        else:
+            if self.nextCrossing is None:
+                self.nextCrossing = "sunrise"
+            elif self.nextCrossing == "sunset":
+                crossed = True
+
+                # Now we are pending sunrise
+                self.nextCrossing = "sunrise"
+
+        # Report unknown crossing name and restore based on day/night
+        # time state
+        if (self.nextCrossing != "sunrise") and (self.nextCrossing != "sunset"):
+            warningMessage("Unrecognized horizon crossing detected: {}".format(self.nextCrossing))
+            if itsDaytime():
+                self.nextCrossing = "sunset"
+            else:
+                self.nextCrossing = "sunrise"
+
+
+        return crossed
+
     def tick(self):
         # Set the current time in the math library
         setSystemTime()
@@ -921,24 +953,17 @@ class QtSunsetter(QWidget):
         # sunrise time when used after today's sunset. The literal sunrise
         # sunset times displayed are always for today however
         diffTime = getTimeToNextHorizonCrossing()
-        if itsDaytime():
-            if self.nextCrossing is None:
-                self.nextCrossing = "sunset"
-            elif self.nextCrossing == "sunrise":
-                self.reachedSunrise()
 
-                # Now we are pending sunset
-                self.nextCrossing = "sunset"
-        else:
-            if self.nextCrossing is None:
-                self.nextCrossing = "sunrise"
-            elif self.nextCrossing == "sunset":
+        # Adjust our sense of which horizon crossing is next, if we have
+        # just made a crossing
+        if self.setNextHorizonCrossingText():
+            # Crossing made, run the target program for it
+            if self.nextCrossing == "sunset":
+                self.reachedSunrise()
+            elif self.nextCrossing == "sunrise":
                 self.reachedSunset()
 
-                # Now we are pending sunrise
-                self.nextCrossing = "sunrise"
-
-        # Display it with a relevant prompt
+        # Display time until the next crossing by name
         labrTimePrompt = self.findChild(QLabel, "rTimePrompt")
         labrTimeValue = self.findChild(QLabel, "rTimeValue")
         if (labrTimePrompt is not None) and (labrTimeValue is not None):
@@ -951,6 +976,7 @@ class QtSunsetter(QWidget):
         # Re-color the background of the run at sunset control
         self.recolorRunEditBackground(QTS_SUNSET)
 
+        # Show the animated pretend sky view
         self.drawIconByAngle()
 
     def signLatLonDirection(self, location, direction):
