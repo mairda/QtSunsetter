@@ -147,7 +147,12 @@ class SunsetterConfig:
                            self.configSrcFrom)
 
     def setRunLastEventAtLaunch(self, enabled):
-        self.runLastEventAtLaunch = enabled
+        if (enabled is True) or (enabled is False):
+            self.runLastEventAtLaunch = enabled
+        else:
+            warningMessage("Attempt to set unknown state, {}, for run last "
+                           "event at launch".format(enabled),
+                           self.configSrcFrom)
 
     def getConfigFileDir(self):
         # Get the home directory path
