@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'QtSsLocationDialogQwYTiE.ui'
+## Form generated from reading UI file 'QtSsLocationDialog.ui'
 ##
 ## Created by: Qt User Interface Compiler version 5.15.2
 ##
@@ -18,21 +18,21 @@ class Ui_QtSsLocationDialog(object):
         if not QtSsLocationDialog.objectName():
             QtSsLocationDialog.setObjectName(u"QtSsLocationDialog")
         QtSsLocationDialog.setWindowModality(Qt.ApplicationModal)
-        QtSsLocationDialog.resize(286, 234)
+        QtSsLocationDialog.resize(300, 265)
         self.buttonBox = QDialogButtonBox(QtSsLocationDialog)
         self.buttonBox.setObjectName(u"buttonBox")
-        self.buttonBox.setGeometry(QRect(10, 182, 266, 41))
+        self.buttonBox.setGeometry(QRect(10, 213, 280, 41))
         self.buttonBox.setOrientation(Qt.Horizontal)
         self.buttonBox.setStandardButtons(QDialogButtonBox.Cancel|QDialogButtonBox.Ok)
         self.label = QLabel(QtSsLocationDialog)
         self.label.setObjectName(u"label")
-        self.label.setGeometry(QRect(10, 10, 47, 16))
+        self.label.setGeometry(QRect(10, 10, 61, 19))
         self.label_2 = QLabel(QtSsLocationDialog)
         self.label_2.setObjectName(u"label_2")
         self.label_2.setGeometry(QRect(20, 39, 61, 16))
         self.longitude = QLineEdit(QtSsLocationDialog)
         self.longitude.setObjectName(u"longitude")
-        self.longitude.setGeometry(QRect(82, 68, 120, 30))
+        self.longitude.setGeometry(QRect(82, 68, 134, 30))
         self.longitude.setInputMethodHints(Qt.ImhDigitsOnly)
         self.longitude.setMaxLength(16)
         self.label_3 = QLabel(QtSsLocationDialog)
@@ -40,19 +40,19 @@ class Ui_QtSsLocationDialog(object):
         self.label_3.setGeometry(QRect(10, 75, 71, 16))
         self.latitude = QLineEdit(QtSsLocationDialog)
         self.latitude.setObjectName(u"latitude")
-        self.latitude.setGeometry(QRect(82, 32, 120, 30))
+        self.latitude.setGeometry(QRect(82, 32, 134, 30))
         self.latitude.setInputMethodHints(Qt.ImhDigitsOnly)
         self.latitude.setMaxLength(16)
         self.latDirection = QComboBox(QtSsLocationDialog)
         self.latDirection.addItem("")
         self.latDirection.addItem("")
         self.latDirection.setObjectName(u"latDirection")
-        self.latDirection.setGeometry(QRect(208, 32, 68, 30))
+        self.latDirection.setGeometry(QRect(222, 32, 68, 30))
         self.longDirection = QComboBox(QtSsLocationDialog)
         self.longDirection.addItem("")
         self.longDirection.addItem("")
         self.longDirection.setObjectName(u"longDirection")
-        self.longDirection.setGeometry(QRect(208, 68, 68, 30))
+        self.longDirection.setGeometry(QRect(222, 68, 68, 30))
         self.label_4 = QLabel(QtSsLocationDialog)
         self.label_4.setObjectName(u"label_4")
         self.label_4.setGeometry(QRect(10, 111, 171, 16))
@@ -65,6 +65,9 @@ class Ui_QtSsLocationDialog(object):
         self.chkCorrectForSysTZ = QCheckBox(QtSsLocationDialog)
         self.chkCorrectForSysTZ.setObjectName(u"chkCorrectForSysTZ")
         self.chkCorrectForSysTZ.setGeometry(QRect(10, 145, 251, 20))
+        self.showLocationInDMS = QCheckBox(QtSsLocationDialog)
+        self.showLocationInDMS.setObjectName(u"showLocationInDMS")
+        self.showLocationInDMS.setGeometry(QRect(10, 176, 277, 24))
         QWidget.setTabOrder(self.latitude, self.latDirection)
         QWidget.setTabOrder(self.latDirection, self.longitude)
         QWidget.setTabOrder(self.longitude, self.longDirection)
@@ -89,5 +92,6 @@ class Ui_QtSsLocationDialog(object):
 
         self.label_4.setText(QCoreApplication.translate("QtSsLocationDialog", u"Timezone Offset (Hours):", None))
         self.chkCorrectForSysTZ.setText(QCoreApplication.translate("QtSsLocationDialog", u"Correct for system clock timezone", None))
+        self.showLocationInDMS.setText(QCoreApplication.translate("QtSsLocationDialog", u"Location in Degrees Minutes Seconds", None))
     # retranslateUi
 

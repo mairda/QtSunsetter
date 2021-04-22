@@ -157,6 +157,7 @@ def SunAppLongDegrees(aDate, aTime=datetime.time(0, 0, 0)):
     return aLong
 # SunAppLongDegrees
 
+
 def SunRightAscension(aDate, aTime=datetime.time(0, 0, 0)):
     aLong = radians(SunAppLongDegrees(aDate, aTime))
     oCorr = radians(ObliqCorrDegrees(aDate, aTime))
@@ -206,7 +207,7 @@ def HASunrise(aDate, aTime=datetime.time(0, 0, 0)):
     global HomeLat
 
     sDecRad = radians(SunDeclination(aDate, aTime))
-    homeLatRad =radians(HomeLat)
+    homeLatRad = radians(HomeLat)
     haRiseIn = acos(cos(radians(90.833)) / (cos(homeLatRad) *
                     cos(sDecRad)) - tan(homeLatRad) *
                     tan(sDecRad))
@@ -370,10 +371,41 @@ def testFunction(aTime):
 # testFunction
 
 
+def getAngleDegrees(angle):
+    return int(angle)
+
+
+def getAngleMinutes(angle):
+    fracAng = angle - getAngleDegrees(angle)
+    return int(fracAng * 60.0)
+
+
+def getAngleSeconds(angle):
+    fracAng = angle - getAngleDegrees(angle)
+    fracAng -= getAngleMinutes(angle) / 60.0
+    return int(fracAng * 3600.0)
+
+
 def getLatitude():
     global HomeLat
 
     return HomeLat
+
+
+def getAbsLatitude():
+    return abs(getLatitude())
+
+
+def getLatitudeDegrees():
+    return getAngleDegrees(getAbsLatitude())
+
+
+def getLatitudeMinutes():
+    return getAngleMinutes(getAbsLatitude())
+
+
+def getLatitudeSeconds():
+    return getAngleSeconds(getAbsLatitude())
 
 
 def setLatitude(newLat):
@@ -387,6 +419,22 @@ def getLongitude():
     global HomeLong
 
     return HomeLong
+
+
+def getAbsLongitude():
+    return abs(getLongitude())
+
+
+def getLongitudeDegrees():
+    return getAngleDegrees(getAbsLongitude())
+
+
+def getLongitudeMinutes():
+    return getAngleMinutes(getAbsLongitude())
+
+
+def getLongitudeSeconds():
+    return getAngleSeconds(getAbsLongitude())
 
 
 def setLongitude(newLon):

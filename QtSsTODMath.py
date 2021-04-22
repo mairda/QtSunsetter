@@ -32,6 +32,8 @@ import datetime
 
 from QtSsMath import LocalSunrise, LocalSunset, getHomeTZ, timeFromDayFraction
 
+from QtSsDebug import debugMessage
+
 
 # Get the current time
 # Returns a daytime type (h:m:s)

@@ -44,6 +44,10 @@ class SunsetterConfig:
         self.sunriseRun = None
         self.sunsetRun = None
         self.runLastEventAtLaunch = False
+        self.showLocationDMS = False
+
+    def getShowLocationDMS(self):
+        return self.showLocationDMS
 
     def getLatitude(self):
         return self.latitude
@@ -87,6 +91,9 @@ class SunsetterConfig:
             if (fInfo.exists()) and (fInfo.isExecutable()):
                 result = True
         return result
+
+    def setShowLocationFormat(self, useDMS=False):
+        self.showLocationDMS = useDMS
 
     def setLatitude(self, newLat):
         if (newLat >= -90.0) and (newLat <= 90.0):
@@ -184,6 +191,18 @@ class SunsetterConfig:
         debugMessage("TEMP FILE: {}".format(tmpFilename))
         return tmpFilename
 
+    def showLocationFormatConfig(self, cfgLine):
+        result = False
+        m = re.search('^ShowLocationInDMS$',
+                      cfgLine,
+                      flags=re.IGNORECASE)
+        if m is not None:
+            self.setShowLocationFormat(True)
+            result = True
+            debugMessage("Show location in Degrees, minutes, seconds ENABLED")
+
+        return result
+
     def latlonConfig(self, cfgLine):
         nVal = None
         m = re.search('^latitude=(\\-{0,1}\\d+\\.{0,1}\\d*)$',
@@ -226,7 +245,7 @@ class SunsetterConfig:
                 nTZ = float(tz)
             except Exception:
                 warningMessage("Invalid timezone value {}. "
-                               "Assuming 0.0".format(val))
+                               "Assuming 0.0".format(tz))
                 nTZ = 0.0
             self.setHomeTZ(nTZ)
             debugMessage("TZ = {} => {}".format(tz, nTZ))
@@ -293,6 +312,11 @@ class SunsetterConfig:
 
         # If there is nothing left we are finished with the line
         if (theLine == "") or (theLine is None):
+            return
+
+        # If we have the switch to enable showing lat/lon in degrees,
+        # minutes, seconds
+        if self.showLocationFormatConfig(theLine) is True:
             return
 
         # If we have a latitude or longitude (signed decimal)
@@ -502,7 +526,26 @@ class SunsetterConfig:
                     outLine = ""
 
             self.savedCorrectForSysTZ = True
-        else:
+
+        # If we are handling show lat/lon in degrees minutes and seconds in
+        # the main window base output on the config instance value
+        n = re.search('^showLocationInDMS$',
+                      theLine,
+                      flags=re.IGNORECASE)
+        if n is not None:
+            if self.getShowLocationDMS() is False:
+                debugMessage("showLocationInDMS DISABLED")
+                # If there's no gap and no comment then don't write an empty
+                # line as a replacement
+                if ((theGap is None) or (theGap == "")) and\
+                        ((theComment is None) or (theComment == "")):
+                    outLine = None
+                else:
+                    outLine = ""
+
+            self.savedShowLocationDMS = True
+
+        if (m is None) and (n is None):
             # If we have a latitude or longitude (signed decimal)
             tmpLine = self.latLonProcessOutput(theLine)
             if tmpLine is None:
@@ -530,6 +573,7 @@ class SunsetterConfig:
     # keeping all other content
     def saveConfig(self):
         # We haven't yet saved each property
+        self.savedShowLocationDMS = False
         self.savedLat = False
         self.savedLon = False
         self.savedTZ = False
@@ -566,6 +610,7 @@ class SunsetterConfig:
                 if inStream is not None:
                     while not inStream.atEnd():
                         line = inStream.readLine()
+                        print("Saving Config line: {}".format(line))
                         self.processOutputConfigLine(outStream, line)
 
                     # Remove the original config file
@@ -578,6 +623,11 @@ class SunsetterConfig:
 
                 # Fixup anything we didn't save in the temp file they will
                 # only be written based on the third argument being True
+                locationFmtCorrect = (self.savedShowLocationDMS is False) and\
+                                     (self.getShowLocationDMS() is True)
+                self.processOutputConfigLine(outStream,
+                                             "showLocationInDMS",
+                                             locationFmtCorrect)
                 self.processOutputConfigLine(outStream,
                                              "latitude=0",
                                              not self.savedLat)

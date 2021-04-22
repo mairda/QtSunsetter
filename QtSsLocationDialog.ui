@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>286</width>
-    <height>234</height>
+    <width>300</width>
+    <height>265</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -20,8 +20,8 @@
    <property name="geometry">
     <rect>
      <x>10</x>
-     <y>182</y>
-     <width>266</width>
+     <y>213</y>
+     <width>280</width>
      <height>41</height>
     </rect>
    </property>
@@ -37,8 +37,8 @@
     <rect>
      <x>10</x>
      <y>10</y>
-     <width>47</width>
-     <height>16</height>
+     <width>61</width>
+     <height>19</height>
     </rect>
    </property>
    <property name="text">
@@ -63,7 +63,7 @@
     <rect>
      <x>82</x>
      <y>68</y>
-     <width>120</width>
+     <width>134</width>
      <height>30</height>
     </rect>
    </property>
@@ -92,7 +92,7 @@
     <rect>
      <x>82</x>
      <y>32</y>
-     <width>120</width>
+     <width>134</width>
      <height>30</height>
     </rect>
    </property>
@@ -106,7 +106,7 @@
   <widget class="QComboBox" name="latDirection">
    <property name="geometry">
     <rect>
-     <x>208</x>
+     <x>222</x>
      <y>32</y>
      <width>68</width>
      <height>30</height>
@@ -126,7 +126,7 @@
   <widget class="QComboBox" name="longDirection">
    <property name="geometry">
     <rect>
-     <x>208</x>
+     <x>222</x>
      <y>68</y>
      <width>68</width>
      <height>30</height>
@@ -186,6 +186,19 @@
    </property>
    <property name="text">
     <string>Correct for system clock timezone</string>
+   </property>
+  </widget>
+  <widget class="QCheckBox" name="showLocationInDMS">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>176</y>
+     <width>277</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Location in Degrees Minutes Seconds</string>
    </property>
   </widget>
  </widget>
