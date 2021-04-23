@@ -198,7 +198,7 @@ class QtSunsetter(QWidget):
                 self.timer.start(1000)
         # Debugging, use a one second timer but don't force sky object progress
         else:
-            self.timer.start(10000)
+            self.timer.start(1000)
 
     def dumpAppIconSizes(self, atContext):
         if debugIsEnabled():
@@ -228,7 +228,7 @@ class QtSunsetter(QWidget):
         # ...for now don't make these variable and only draw the sun rising
         # (viewing South) or setting (viewing North)
         groundColor = self.getGroundColor(timeFrac=-1.0)
-        skyColor = self.getSkyColor(assumeDaytime=True, timeFrac=-1.0)
+        skyColor = self.getSkyColor(timeFrac=-1.0, assumeDaytime=True)
         objectColor = Qt.yellow
 
         # More sky than ground, set the sizes
@@ -662,51 +662,8 @@ class QtSunsetter(QWidget):
             if newPalette is True:
                 ctrlRun.setPalette(wPalette)
 
-    def skyObjectHypotenuse(self, tFrac, xVal, yVal):
-        tRevFrac = 1.0 - tFrac
-        hyp = sqrt(pow(tRevFrac * xVal, 2)
-                   + pow(tFrac * yVal, 2))
-        return hyp
-
-    def hypotenuseX(self, hyp, angle, xCenter, xOffsets):
-        newX = xCenter - (cos(angle) * hyp) + xOffsets
-        return newX
-
-    def hypotenuseY(self, hyp, angle, yCenter, yOffsets):
-        yNew = yCenter - (sin(angle) * hyp) + yOffsets
-
-        # Keep a note of the maximum Y position (lower numbers are higher
-        # up the view)
-        if yNew < self.yMaxObject:
-            self.yMaxObject = yNew
-
-        return yNew
-
-    # The object will reach the top before the center, cycle down and back up
-    # before descending on the other side, make it lock on the top when reached
-    def topLock(self, wAngle, topAngle, yObject, sweepAngle):
-        yNew = yObject
-
-        # If we are before the mid-point we shouldn't be declining
-        if wAngle < topAngle:
-            if yObject > self.lastYObject:
-                yNew = self.yMaxObject
-                if self.lockAngle == 0.0:
-                    self.lockAngle = wAngle
-                # print("lock /_ {}".format(self.lockAngle))
-        elif wAngle >= topAngle:
-            # If we are at or passing the mid-point we should stay up
-            # until the opposite of the lock angle
-            if self.lockAngle != 0.0:
-                unlockAngle = sweepAngle - self.lockAngle
-                # print("unlock /_ {}".format(unlockAngle))
-                if wAngle <= unlockAngle:
-                    yNew = self.yMaxObject
-                else:
-                    self.lockAngle = 0.0
-
-        return yNew
-
+    # Given a number that varies between zero and one, modify it to range from
+    # zero to one to zero, peaking when 0.5 is supplied
     def getTimeBounce(self, fromTimeFrac=0.0):
         if fromTimeFrac < 0.5:
             tBounce = 2.0 * fromTimeFrac
@@ -715,9 +672,13 @@ class QtSunsetter(QWidget):
 
         return tBounce
 
-    def getSkyColor(self, assumeDaytime=False, timeFrac=0.0):
-        tBounce = self.getTimeBounce(timeFrac)
-        tRevBounce = 1.0 - tBounce
+    # Given a number that varies between zero and one, modify it to range from
+    # one to zero to one, reaching zero when 0.5 is supplied
+    def getTimeRevBounce(self, fromTimeFrac=0.0):
+        return (1.0 - self.getTimeBounce(fromTimeFrac))
+
+    def getSkyColor(self, timeFrac=0.0, assumeDaytime=False):
+        tRevBounce = self.getTimeRevBounce(timeFrac)
 
         if (assumeDaytime is False) and itsNighttime():
             defaultSky = QColor(0x2A, 0x2A, 0x35)
@@ -737,7 +698,7 @@ class QtSunsetter(QWidget):
     def getGroundColor(self, timeFrac=0.0):
         defaultGround = QColor(0x7C, 0xFC, 0)
         tBounce = self.getTimeBounce(timeFrac)
-        tRevBounce = 1.0 - tBounce
+        tRevBounce = self.getTimeRevBounce(timeFrac)
         if timeFrac >= 0.0:
             if itsDaytime():
                 groundNow = defaultGround.darker(100.0 + (200.0 * tRevBounce))
@@ -752,13 +713,10 @@ class QtSunsetter(QWidget):
     # around the ellipse return the polar length from center to the point on
     # the ellipse at that angle
     def polarLength(self, elA, elB, elAB, elTheta):
-        aElem = elA * sin(elTheta)
-        aElem *= aElem
-        bElem = elB * cos(elTheta)
-        bElem *= bElem
-        elLen = elAB / sqrt(aElem + bElem)
+        aElem = (elA * sin(elTheta))**2
+        bElem = (elB * cos(elTheta))**2
 
-        return elLen
+        return elAB / sqrt(aElem + bElem)
 
     def drawIconByAngle(self):
         view = self.findChild(QGraphicsView, "dayIcon")
@@ -787,7 +745,7 @@ class QtSunsetter(QWidget):
             # height. Also allow for a top, left and right one pixel margin.
             # And compensate for the draw function taking a left co-ordinate
             # and width by subtracting the objectDiameter. This allows the
-            # object to stay in view when being drawn at the ellipe's right
+            # object to stay in view when being drawn at the ellipse's right
             # extreme
             elSize = QSize(skySize.width() - 2 - objectDiam,
                            skySize.height() - 1)
@@ -813,24 +771,28 @@ class QtSunsetter(QWidget):
             hLimit = elHfSize.width() - objectRad
             leftStart = atan2(0 - hLimit, -1)
             rightStart = atan2(hLimit, -1)
-            # Should be just over pi
+            # Should be just over pi radians
             sweepAngle = abs(leftStart - rightStart)
 
             # But, if we just multiply sweepAngle by the fraction of the
             # day/night passed then one end will be at zero radians and all the
-            # margin will be at the other end. We need to add half the margin
-            # to every sky object's angle
+            # margin will be at the other end. We need to offset every sky
+            # object's angle by half the margin
             sweepOffset = (sweepAngle - pi) / 2.0
-            # debugMessage("Sweep angle {} ({})".format(sweepAngle,
-            #                                           sweepAngle * 180.0 / pi))
 
-            # Should be pi/2
-            # topAngle = sweepAngle / 2.0
+            # msg = "Sweep angle {} ({})".format(sweepAngle,
+            #                                    sweepAngle * 180.0 / pi))
+            # debugMessage(msg)
+            # msg = "Sweep offset {} ({})".format(sweepOffset,
+            #                                     sweepOffset * 180.0 / pi))
+            # debugMessage("Sweep offset {} ({})".format(msg)
 
             # Get the direction to the Sun (are we in the Southern or Northern
             # hemisphere). True is Northern, False is Southern. True means the
             # sun/moon in a Southerly direction
             skyViewSouth = (getLatitude() >= 0.0)
+            # "View to sky object is Southerly: {}".format(skyViewSouth)
+            # debugMessage(msg)
 
             # Ranges from 0.0 to 1.0 through the day or night, used to compute
             # an angle for the sky object.
@@ -842,41 +804,30 @@ class QtSunsetter(QWidget):
 
             # Pretend it's...
             # t = 0.005
+
             # msg = "t now as a fraction of current light period: {}".format(t)
             # debugMessage(msg)
+            # msg = "t reversed as a fraction of current light period: "
+            # msg += "{}".format(tRev)
+            # debugMessage(msg)
 
-            # Looking North the object goes counter-clockwise, looking South it
-            # goes clockwise.
-            tRev = 1.0 - t
+            # Calculate the current angle simply as a fraction of sweep
+            angle = t * sweepAngle
 
-            # tBounce?
-            # tBounce = self.getTimeBounce(t)
-            # tRevBounce = 1.0 - tBounce
-
-            # Calculate a horizontal offset for margin, it is negative on
-            # the right, zero in the center and positive on the left
-            # xOffset = tRevBounce * 6.0
-            # if t > 0.5:
-            #     xOffset = 0.0 - xOffset
-
-            # Calculate the current angle based on a South or North view of
-            # the sun/moon. Also get a single direction working angle for
-            # both views
-            if skyViewSouth is True:
-                polAngle = tRev * sweepAngle + sweepOffset
+            # Correct it for view direction and the below horizon margins
+            if skyViewSouth:
+                polAngle = (pi - angle) + sweepOffset
                 # debugMessage("S: polar angle {}".format(polAngle))
             else:
-                polAngle = sweepAngle - t * sweepAngle + sweepOffset
+                polAngle = angle - sweepOffset
                 # debugMessage("N: polar {}".format(polAngle))
-
-                # North view goes in the opposite direction from the South view
-                # xOffset = 0 - xOffset
 
             # We have the polar angle, get the polar length
             polLen = self.polarLength(elHfSize.width(), elHfSize.height(),
                                       elAB, polAngle)
 
             # With polar co-ordinates we can compute x, y
+
             # x is just the polar length times the cosine of the polar angle...
             # BUT, the draw for the object does it in a rectangle that contains
             # it. So, on the left we can start at the first pixel but on the
@@ -884,7 +835,10 @@ class QtSunsetter(QWidget):
             # view in order to see it. We already made the ellipse width short
             # by the object diameter so if we position it short by object
             # radius it stays in view when above the horizon
-            xRaw = polLen * cos(polAngle) - objectRad
+            # BUT, the ellipse is currently centered around co-ordinate 0, 0.
+            # Also re-position X to the ellipse center's X
+            xObject = int(polLen * cos(polAngle) - objectRad + elCtr.x())
+
             # y is just the polar length times the sine of the polar angle...
             # BUT, Because the view has co-ordinates that grow from zero at the
             # top to higher numbers lower down the view we get the lower half
@@ -892,23 +846,35 @@ class QtSunsetter(QWidget):
             # height
             yObject = int(skySize.height() - polLen * sin(polAngle))
 
-            # Offset X onto the view (center of rotation is not zero x,y and y
-            # is already offset correctly due to the correction for the view
-            # vertical co-ordinate growing in a downward direction)
-            xObject = int(xRaw + elCtr.x())
             # msg = "Sky object is at {}, {}".format(xObject, yObject)
-            # msg += "based on polar {} /_ {}".format(polLen, polAngle)
+            # msg += " based on polar {} /_ {}".format(polLen, polAngle)
             # msg += " ({})".format(polAngle * 180.0 / pi)
             # debugMessage(msg)
 
             # If we have changed the object position then choose colors and
             # draw the objects (sky, sky object, ground)
             if (xObject != self.lastXObject) or (yObject != self.lastYObject):
-                debugMessage("Draw new sky object at {}. {}".format(xObject,
-                                                                    yObject))
-                # Compute colors based on fraction of day/night time
+                # debugMessage("Draw new sky object at {}, {}".format(xObject,
+                #                                                     yObject))
+
+                # Compute colors based on fraction of day/night time and get
+                # pen and brush for each
                 groundNow = self.getGroundColor(t)
-                skyNow = self.getSkyColor(False, t)
+                skyNow = self.getSkyColor(t, False)
+                skyPen = QPen(skyNow,
+                              1,
+                              Qt.SolidLine,
+                              Qt.SquareCap,
+                              Qt.BevelJoin)
+                skyBrush = QBrush(skyNow)
+                groundPen = QPen(groundNow,
+                                 1,
+                                 Qt.SolidLine,
+                                 Qt.SquareCap,
+                                 Qt.BevelJoin)
+                groundBrush = QBrush(groundNow)
+
+                # Get pen and brush for the object in the sky
                 if itsDaytime():
                     # Sun color
                     objectPen = QPen(Qt.yellow,
@@ -926,19 +892,7 @@ class QtSunsetter(QWidget):
                                      Qt.BevelJoin)
                     objectBrush = QBrush(Qt.lightGray)
 
-                skyPen = QPen(skyNow,
-                              1,
-                              Qt.SolidLine,
-                              Qt.SquareCap,
-                              Qt.BevelJoin)
-                skyBrush = QBrush(skyNow)
-                groundPen = QPen(groundNow,
-                                 1,
-                                 Qt.SolidLine,
-                                 Qt.SquareCap,
-                                 Qt.BevelJoin)
-                groundBrush = QBrush(groundNow)
-
+                # Draw the view (sky, object in the sky and ground)
                 scene.setSceneRect(0.0, 0.0, vSize.width() * 1.0,
                                    vSize.height() * 1.0)
                 scene.clear()
@@ -962,193 +916,6 @@ class QtSunsetter(QWidget):
                 self.lastXObject = xObject
                 self.lastYObject = yObject
 
-                view.show()
-
-    # Replace this with something using ellipse math instead of guesses
-    def drawIconByAngleB(self):
-        view = self.findChild(QGraphicsView, "dayIcon")
-        if view is not None:
-            scene = view.scene()
-            if scene is None:
-                scene = QGraphicsScene()
-                view.setScene(scene)
-
-            XXx = view.size()
-            debugMessage("View size is {}, {}".format(XXx.width(),
-                                                      XXx.height()))
-
-            # Some constants used a lot so give them names
-            ySize = 128.0
-            maxY = 127.0
-            yHalfSize = ySize / 2.0
-            # minXY = 0.0
-            # maxXY = 127.0
-            xSize = 460.0
-            maxX = 459.0
-            offsetY = ySize - maxY
-            objectRad = 12.0
-            objectDiam = 2.0 * objectRad
-            skyHeight = 85
-            # groundHeight = vSize - skyHeight
-            horizonLine = skyHeight - offsetY
-            skyExtra = (skyHeight - yHalfSize) + offsetY
-            xCenter = maxX / 2.0
-            yCenter = horizonLine + 0.5
-            margin = 2.0
-            # topAngle = pi / 2.0
-            # nudge = 0.5
-
-            # Get the direction to the Sun (are we in the Southern or Northern
-            # hemisphere). True is Northern, False is Southern
-            skyViewSouth = (getLatitude() >= 0.0)
-            # skyViewSouth = False
-            # print("{} becomes {}".format(getLatitude(), skyViewSouth))
-
-            # Sweep between points one pixel below the left and right
-            # horizon limits
-            hLimit = xCenter - objectRad
-            leftStart = atan2(0 - hLimit, -1)
-            rightStart = atan2(hLimit, -1)
-            # Should be just over 2 pi
-            sweepAngle = abs(leftStart - rightStart)
-
-            # Should be pi
-            topAngle = sweepAngle / 2.0
-
-            # The excess on each side is half of the sweep angle minus pi (180
-            # degrees)
-            # startAngle = (sweepAngle - pi) / 2.0
-
-            # print("{}, {}, {}".format(sweepAngle, leftStart, rightStart))
-
-            # Ranges from 0.0 to 1.0, used to compute a location for
-            # the sky object. Get other ranges for the same
-            if self.forceTime is False:
-                t = getTimeNowFractionOfLightPeriod()
-            else:
-                t = self.savedT + self.forceAmount
-                self.savedT = t
-            # t = 0.9945505
-            tRev = 1.0 - t
-            tBounce = self.getTimeBounce(t)
-            tRevBounce = 1.0 - tBounce
-            # print("t {} / {} / {} / {}".format(t, tRev, tBounce, tRevBounce))
-
-            # Calculate a horizontal offset for margin, it is negative on
-            # the right, zero in the center and positive on the left
-            xOffset = tRevBounce * 6.0
-            if t > 0.5:
-                xOffset = 0.0 - xOffset
-
-            # Calculate the current angle based on a South or North view of
-            # the sun/moon. Also get a single direction working angle for
-            # both views
-            if skyViewSouth is True:
-                angle = t * sweepAngle
-                wAngle = angle
-            else:
-                angle = tRev * sweepAngle
-                wAngle = sweepAngle - angle
-
-                # North view goes in the opposite direction from the South view
-                xOffset = 0 - xOffset
-
-            # print("/_ {}".format(angle))
-
-            # Calculate the "hypotenuse length of the line to the object
-            # DWH: 2020/11/15 hyp = round(yHalfSize + (tBounce * skyExtra), 2)
-            hyp = self.skyObjectHypotenuse(tBounce, xCenter, skyHeight)
-            # print("{}".format(hyp))
-
-            # Plus a little static offset
-            # xOffset += 1.0
-
-            # We can use the equation for an ellipse (x^2/a^2) + (y^2/b^2) = 1
-            # where a is the horizontal maximum from center
-            # b is the vertical maximum from center - 2021/04/20
-
-            # The angle can just follow the time
-            # skyAngle = tBounce * sweepAngle
-
-            # From the angle we can use trigonometry for the ratios of the
-            # triangle sides
-
-            # Calculate a vertical offset for top margin, it is zero at
-            # the horizon and positive at the top of the sky
-            # yOffset = tBounce * 2.5 * margin
-            yOffset = tBounce * 8.0
-
-            # Now get x and y
-            xObject = self.hypotenuseX(hyp,
-                                       angle,
-                                       xCenter,
-                                       xOffset - objectRad)
-            yNew = self.hypotenuseY(hyp,
-                                    angle,
-                                    yCenter,
-                                    yOffset)
-            yObject = self.topLock(wAngle, topAngle, yNew, sweepAngle)
-
-            # print("{}/{} ... {}".format(yObject, self.lastYObject,
-            #                             self.yMaxObject))
-            # print("{}, {}". format(xCenter, yCenter))
-            # print("{} : {} : {} : {}".format(degrees(angle), hyp, xOffset,
-            #                                  tRev))
-            # print("pos {}, {}". format(xObject, yObject))
-
-            # Choose colors and draw the objects if we have changed the object
-            # position
-            if (xObject != self.lastXObject) or (yObject != self.lastYObject):
-                # Compute colors based on fraction of day/night time
-                groundNow = self.getGroundColor(t)
-                skyNow = self.getSkyColor(False, t)
-                if itsDaytime():
-                    # Sun color
-                    objectPen = QPen(Qt.yellow,
-                                     1,
-                                     Qt.SolidLine,
-                                     Qt.SquareCap,
-                                     Qt.BevelJoin)
-                    objectBrush = QBrush(Qt.yellow)
-                else:
-                    # Moon color
-                    objectPen = QPen(Qt.lightGray,
-                                     1,
-                                     Qt.SolidLine,
-                                     Qt.SquareCap,
-                                     Qt.BevelJoin)
-                    objectBrush = QBrush(Qt.lightGray)
-
-                skyPen = QPen(skyNow,
-                              1,
-                              Qt.SolidLine,
-                              Qt.SquareCap,
-                              Qt.BevelJoin)
-                skyBrush = QBrush(skyNow)
-                groundPen = QPen(groundNow,
-                                 1,
-                                 Qt.SolidLine,
-                                 Qt.SquareCap,
-                                 Qt.BevelJoin)
-                groundBrush = QBrush(groundNow)
-
-                scene.setSceneRect(0.0, 0.0, xSize, ySize)
-                scene.clear()
-                scene.addRect(0.0, 0.0, xSize, horizonLine, skyPen, skyBrush)
-                scene.addEllipse(xObject,
-                                 yObject,
-                                 objectDiam,
-                                 objectDiam,
-                                 objectPen,
-                                 objectBrush)
-                scene.addRect(0.0,
-                              horizonLine,
-                              xSize,
-                              ySize - horizonLine,
-                              groundPen,
-                              groundBrush)
-                self.lastXObject = xObject
-                self.lastYObject = yObject
                 view.show()
 
     # Returns true if we are passing sunrise/sunset
